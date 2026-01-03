@@ -1,0 +1,112 @@
+{
+  "admins": [
+    {
+      "id": "b8804d3b-9f5b-4684-9005-bfa2352e34b4",
+      "email": "funstuffkids31@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$S3a8KmMFvQ+f+jpkSenRww$3BjyxFy4SdbakPN3mrnF2QcenEtaVT7r/lnUA2C4M3U",
+      "is_owner": true,
+      "created_at": "2025-12-15T12:46:07.504Z"
+    }
+  ],
+  "sessions": [],
+  "users": [
+    {
+      "id": "a579eac3-0b16-4f0b-a0db-8cae1f88bb51",
+      "email": "alec.gabrielyan@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$szOWGeuGi8hPFN2zo98w4g$P21eEN+U8SfpgaCQHIC/K8jKa27PpfbErNhjbizCwMI",
+      "created_at": "2025-12-16T01:24:19.852Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "26718777-2de6-4a7b-b48b-f5e573c59996",
+      "email": "anais.kadian@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$NLBXW6eE2oKsIzDDOSq4zQ$4rtqTscBSbZhSh+4hzhqhfsB8adRn+dIre/WyOEqdw8",
+      "created_at": "2025-12-16T01:26:26.090Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "f5cbf723-b0f0-4faa-bd06-ad8e4c6fa1c3",
+      "email": "noushig.kadian@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$WUBQLOd0s4BeXXkOQqaqbw$7DK3y2vgqKxMskRvpIjDPhPpXEkWSBryStCZOsQREpo",
+      "created_at": "2025-12-16T01:32:58.237Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "d991c5dd-2adf-4d6d-ab4d-da32dc7252f8",
+      "email": "karen.gabrielyan@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$9OBQAFtVfkFkUxmrDxSjgA$0NZfH/vZTCQ+PWdxu5ZT7lmbKX7/y0QdGJk4W5veVUw",
+      "created_at": "2025-12-16T01:34:38.805Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "64909ed9-93f9-4d7f-9578-454a775aba79",
+      "email": "alec.gabrielyan@ecolesourphagop.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$BRz1oSw4R27fAZgrl7a+ow$GxK+dl1xiz8IAdETtFVJdFcBTj+zlgRF1XaLl7YK8ns",
+      "created_at": "2025-12-16T01:47:29.824Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "b7314c59-e2d6-43da-9c36-59c07814675e",
+      "email": "anais.kadian@yahoot.ca",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$TcL/KcXgK6uz6Je9bNmEHA$QP9GM+KxtKsXKYj/MZAnlMj+DEzeggAsI1dkURSXTi4",
+      "created_at": "2025-12-16T01:55:11.688Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "e5600def-2f34-4959-9b60-7426ffc2df43",
+      "email": "garbodayday@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$t/s5pnpqC6gZV9qVpUO3XA$G2hdW4SSvGiW63zC7gUWZwXE6FDWEj9qPr8Oe4zO2VE",
+      "created_at": "2025-12-16T01:57:01.285Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "8277a5e6-273b-4149-b657-aad66f896f88",
+      "email": "treag",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$NaRKCmF+yTMmlWdTtOOl0A$zCBf8vdDNtgSBkrGadLE/O45wa4zgFHW9VR7GIS7mcA",
+      "created_at": "2025-12-16T02:00:15.627Z",
+      "verified": true,
+      "verify_token": null
+    },
+    {
+      "id": "d547df57-0e67-481a-aade-564d47133b36",
+      "email": "garo.kadian2gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$0a/5GwXk64Nb6auGr5tvIw$GpQKrKopZTHGV1zoufoudfAOpmrY2kPgt3xE9yYvgJY",
+      "verified": false,
+      "verify_token": "84480121-af68-443c-a798-dabc0f055ef9",
+      "created_at": "2026-01-02T18:15:33.118Z"
+    }
+  ],
+  "user_sessions": [],
+  "reset_tokens": [
+    {
+      "token": "54e25917-6283-4f7b-b2d4-b36e0fefc00c",
+      "email": "funstuffkids31@gmail.com",
+      "target": "admin",
+      "expires_at": 1767376210285
+    }
+  ],
+  "bank_info": {
+    "account_name": "",
+    "account_number": "",
+    "instructions": ""
+  },
+  "orders": [],
+  "lastOrderId": 0,
+  "backgrounds": {
+    "front_page": {
+      "color": "",
+      "image": ""
+    },
+    "shop": {
+      "color": "",
+      "image": ""
+    }
+  }
+}
