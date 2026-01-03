@@ -1,0 +1,29 @@
+{
+  "admins": [
+    {
+      "id": "b8804d3b-9f5b-4684-9005-bfa2352e34b4",
+      "email": "funstuffkids31@gmail.com",
+      "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$qD9sZSk1HUqD+7qxUjl3RA$wYW3xWeuJkUmxrbGOgap9QXNGV0Qw5kPPcVklb0zO5k",
+      "is_owner": true,
+      "created_at": "2025-12-15T12:46:07.504Z"
+    }
+  ],
+  "sessions": [],
+  "bank_info": {
+    "account_name": "",
+    "account_number": "",
+    "instructions": ""
+  },
+  "orders": [],
+  "lastOrderId": 0,
+  "backgrounds": {
+    "front_page": {
+      "color": "",
+      "image": ""
+    },
+    "shop": {
+      "color": "",
+      "image": ""
+    }
+  }
+}

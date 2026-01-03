@@ -1,0 +1,8 @@
+node_modules
+clerk-javascript/node_modules
+clerk-javascript/dist
+.env
+.git
+.gitignore
+npm-debug.log
+*.log
