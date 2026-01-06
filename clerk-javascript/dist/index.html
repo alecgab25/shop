@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glow Up</title>
+  <script type="module" crossorigin src="/assets/index-B9_FuWgr.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CL5XMCAc.css">
+</head>
+<body>
+    <div id="front-page" class="front-page">
+        <button id="front-signin-btn" class="signin-btn" onclick="showUserAuth('signin')">Sign In</button>
+        <button id="front-bg-btn" class="bg-picker-btn" style="display:none;" onclick="openBackgroundPicker('front_page')">Change background</button>
+        <button id="front-signout-btn" class="signout-btn" style="display:none;" onclick="userLogout()">Sign Out</button>
+        <div class="overlay">
+            <h1 id="shop-main-name">Glow Up</h1>
+            <button onclick="enterShop()">Enter Shop</button>
+        </div>
+        <div class="front-author-footer">(Any questiones email funstuffkids31@gmail.com)</div>
+    </div>
+    <div id="shop-section" class="shop-section" style="display:none;">
+        <header class="shop-header">
+            <button class="back-btn" onclick="returnToFront()">← Front Page</button>
+            <span class="shop-header-title">Glow Up</span>
+            <div class="header-right">
+                <button id="shop-bg-btn" class="bg-picker-btn" style="display:none;" onclick="openBackgroundPicker('shop')">Change background</button>
+                <button id="admin-panel-btn" class="admin-btn" style="display:none;" onclick="showAdminPanel()"> Admin Panel</button>
+                <div id="cart-icon-wrapper">
+                    <button id="cart-icon-btn" onclick="toggleCartDropdown()">
+                        <span id="cart-icon" role="img" aria-label="cart">🛒</span>
+                        <span id="cart-count" class="cart-count"></span>
+                    </button>
+                    <div id="cart-dropdown" class="cart-dropdown" style="display:none;">
+                        <h3>Your Cart</h3>
+                        <ul id="cart-list"></ul>
+                        <div id="cart-total"></div>
+                        <button id="checkout-btn" class="checkout-btn" onclick="startCheckout()">Checkout</button>
+                        <p id="bank-info-inline" class="bank-info-inline"></p>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Admin Login Modal -->
+        <div id="admin-login-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeAdminLogin()">&times;</span>
+                <h2>Admin Login</h2>
+                <input type="email" id="admin-email-input" placeholder="Enter your Gmail address">
+                <input type="password" id="admin-password-input" placeholder="Enter your password">
+                <button onclick="adminLogin()">Login</button>
+                <div id="bootstrap-section" style="display:none;" class="bootstrap-section">
+                    <h3>Set up first admin</h3>
+                    <input type="email" id="bootstrap-email" placeholder="Owner email">
+                    <input type="password" id="bootstrap-password" placeholder="Owner password">
+                    <button onclick="bootstrapOwner()">Create Owner</button>
+                    <p class="hint">Only appears until the first admin is created.</p>
+                </div>
+                <p id="admin-login-error" class="error-message"></p>
+            </div>
+        </div>
+
+        <!-- Admin Panel Modal -->
+        <div id="admin-panel-modal" class="modal" style="display:none;">
+            <div class="modal-content admin-panel-content">
+                <span class="close-modal" onclick="closeAdminPanel()">&times;</span>
+                <h2>Admin Panel</h2>
+                <p>Logged in as: <strong id="current-admin-email"></strong></p>
+                <div class="admin-list-section">
+                    <h3>Manage Admins</h3>
+                    <input type="email" id="new-admin-email" placeholder="Add admin Gmail address">
+                    <input type="password" id="new-admin-password" placeholder="Set password for this admin">
+                    <button onclick="addAdmin()">Add Admin</button>
+                    <ul id="admin-list"></ul>
+                </div>
+                <div class="bank-info-section" id="bank-info-section" style="display:none;">
+                    <h3>Payout Bank Details (Owner only)</h3>
+                    <input type="text" id="bank-account-name" placeholder="Account holder name">
+                    <input type="text" id="bank-account-number" placeholder="Account / IBAN">
+                    <textarea id="bank-instructions" placeholder="Payment instructions (e.g., routing, branch)"></textarea>
+                    <button onclick="saveBankInfo()">Save Bank Info</button>
+                    <p class="hint">Shown to buyers at checkout.</p>
+                    <p id="bank-info-save-status" class="status-message"></p>
+                </div>
+                <div class="orders-section" id="orders-section" style="display:none;">
+                    <h3>Orders (Owner only)</h3>
+                    <button onclick="loadOrders()" class="admin-btn">Refresh Orders</button>
+                    <div id="orders-list" class="orders-list"></div>
+                </div>
+                <button onclick="adminLogout()" class="logout-btn">Logout</button>
+            </div>
+        </div>
+        <div class="shop-message-box">
+            <span id="saved-shop-message"></span>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="product-search" placeholder="Search products..." oninput="handleProductSearch(this.value)">
+        </div>
+        <div class="add-product" id="add-product-section" style="display:none;">
+            <h2>Add Product</h2>
+            <input type="text" id="product-name" placeholder="Product Name">
+            <input type="number" id="product-price" placeholder="Price">
+            <input type="file" id="product-image-file" accept="image/*" multiple>
+            <div id="image-preview-container"></div>
+            <button onclick="addProduct()">Add</button>
+        </div>
+        <div class="products-heading-separator"><h2>Products</h2></div>
+        <ul id="product-list"></ul>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div id="product-modal" class="modal" style="display:none;">
+        <div class="modal-content product-detail-content">
+            <span class="close-modal" onclick="closeProductDetail()">&times;</span>
+            <h2 id="product-modal-name"></h2>
+            <p id="product-modal-price" class="product-modal-price"></p>
+            <div class="product-modal-image-wrapper">
+                <button class="product-modal-nav" onclick="prevProductImage()" aria-label="Previous image">&#8249;</button>
+                <img id="product-modal-image" alt="Product image">
+                <button class="product-modal-nav" onclick="nextProductImage()" aria-label="Next image">&#8250;</button>
+            </div>
+            <div id="product-modal-indicator" class="product-modal-indicator"></div>
+        </div>
+    </div>
+    <!-- Checkout Modal -->
+    <div id="checkout-modal" class="modal" style="display:none;">
+        <div class="modal-content checkout-content">
+            <span class="close-modal" onclick="closeCheckout()">&times;</span>
+            <h2>Checkout</h2>
+            <div class="bank-instructions-box">
+                <h4>Payment Instructions</h4>
+                <p id="checkout-bank-info">Owner has not set bank details yet.</p>
+            </div>
+            <h4>Shipping Address</h4>
+            <input type="text" id="checkout-name" placeholder="Full name">
+            <input type="email" id="checkout-email" placeholder="Email (optional)">
+            <input type="text" id="checkout-address" placeholder="Street address">
+            <input type="text" id="checkout-city" placeholder="City">
+            <input type="text" id="checkout-region" placeholder="State/Province">
+            <input type="text" id="checkout-postal" placeholder="Postal code">
+            <div id="checkout-error" class="error-message"></div>
+            <button onclick="submitOrder()" class="checkout-submit-btn">Place Order</button>
+        </div>
+    </div>
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA" src="https://js.clerk.dev/npm/clerk.browser.js"></script>
+</body>
+</html>
