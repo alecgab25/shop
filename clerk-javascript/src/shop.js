@@ -12,6 +12,8 @@ let backgrounds = {
 };
 let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
+let clerkReady = false;
+let clerkLoader = null;
 
 // --- ADMIN SYSTEM ---
 let currentAdmin = null; // { email, is_owner }
@@ -60,7 +62,24 @@ function syncClerkUser() {
     updateUserUI();
 }
 
+function loadClerkScript() {
+    if (window.Clerk) return Promise.resolve();
+    if (clerkLoader) return clerkLoader;
+    clerkLoader = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.src = 'https://js.clerk.dev/npm/clerk.browser.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Clerk script failed to load.'));
+        document.head.appendChild(script);
+    });
+    return clerkLoader;
+}
+
 async function initClerk() {
+    if (clerkReady) return;
+    await loadClerkScript();
     if (!window.Clerk) {
         console.error('Clerk script not loaded.');
         return;
@@ -70,9 +89,16 @@ async function initClerk() {
     if (typeof window.Clerk.addListener === 'function') {
         window.Clerk.addListener(syncClerkUser);
     }
+    clerkReady = true;
 }
 
-function showUserAuth(mode) {
+async function showUserAuth(mode) {
+    try {
+        await initClerk();
+    } catch (_err) {
+        alert('Sign in is still loading. Please try again.');
+        return;
+    }
     if (!window.Clerk) {
         alert('Sign in is still loading. Please try again.');
         return;
