@@ -558,6 +558,18 @@ html {
   gap: 12px;
 }
 
+.user-session-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-session-email {
+  font-size: 0.9em;
+  font-weight: bold;
+  color: #5f3a83;
+}
+
 .admin-btn {
   padding: 8px 16px;
   font-size: 0.95em;
@@ -700,6 +712,35 @@ html {
 
 .modal-content button:hover {
   background: linear-gradient(90deg, #fa8578 0%, #bd43b5 100%);
+}
+
+.auth-toggle {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 4px 0;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.9em;
+  border-radius: 8px;
+  border: 1px solid #c77cf1;
+  background: #f4f0ff;
+  color: #5f3a83;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.auth-tab-active {
+  background: linear-gradient(90deg, #bd43b5 0%, #fa8578 100%);
+  color: #fff;
+  border-color: #bd43b5;
+}
+
+.verify-actions button {
+  width: 100%;
+  margin-top: 6px;
 }
 
 .error-message {

@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Glow Up</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
     <div id="front-page" class="front-page">
@@ -17,15 +17,20 @@
     </div>
     <div id="shop-section" class="shop-section" style="display:none;">
         <header class="shop-header">
-            <button class="back-btn" onclick="returnToFront()">←</button>
+            <button class="back-btn" onclick="returnToFront()">â†</button>
             <span class="shop-header-title">Glow Up</span>
             <div class="header-right">
                 <button id="shop-bg-btn" class="bg-picker-btn" style="display:none;" onclick="openBackgroundPicker('shop')">Change background</button>
                 <button id="admin-login-btn" class="admin-btn" onclick="showAdminLogin()">Admin Login</button>
-                <button id="admin-panel-btn" class="admin-btn" style="display:none;" onclick="showAdminPanel()">⚙️ Admin Panel</button>
+                <button id="admin-panel-btn" class="admin-btn" style="display:none;" onclick="showAdminPanel()">âš™ï¸ Admin Panel</button>
+                <button id="user-auth-btn" class="admin-btn" onclick="showUserAuth()">Create Account</button>
+                <div id="user-session-box" class="user-session-box" style="display:none;">
+                    <span id="user-session-email" class="user-session-email"></span>
+                    <button class="admin-btn" onclick="userLogout()">Logout</button>
+                </div>
                 <div id="cart-icon-wrapper">
                     <button id="cart-icon-btn" onclick="toggleCartDropdown()">
-                        <span id="cart-icon" role="img" aria-label="cart">🛒</span>
+                        <span id="cart-icon" role="img" aria-label="cart">ðŸ›’</span>
                         <span id="cart-count" class="cart-count"></span>
                     </button>
                     <div id="cart-dropdown" class="cart-dropdown" style="display:none;">
@@ -58,6 +63,25 @@
             </div>
         </div>
 
+                <!-- User Auth Modal -->
+        <div id="user-auth-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeUserAuth()">&times;</span>
+                <h2 id="user-auth-title">Create Account</h2>
+                <div class="auth-toggle">
+                    <button id="user-auth-signup-tab" class="auth-tab auth-tab-active" onclick="setUserAuthMode('signup')">Create Account</button>
+                    <button id="user-auth-login-tab" class="auth-tab" onclick="setUserAuthMode('login')">Sign In</button>
+                </div>
+                <input type="email" id="user-email-input" placeholder="Email">
+                <input type="password" id="user-password-input" placeholder="Password">
+                <button id="user-auth-submit" onclick="submitUserAuth()">Create Account</button>
+                <div id="user-auth-helper" class="status-message"></div>
+                <div id="user-verify-actions" class="verify-actions" style="display:none;">
+                    <button id="user-verify-btn" type="button" onclick="verifyUserEmail()">Verify Now</button>
+                </div>
+                <p id="user-auth-error" class="error-message"></p>
+            </div>
+        </div>
         <!-- Admin Panel Modal -->
         <div id="admin-panel-modal" class="modal" style="display:none;">
             <div class="modal-content admin-panel-content">
@@ -140,6 +164,8 @@
             <button onclick="submitOrder()" class="checkout-submit-btn">Place Order</button>
         </div>
     </div>
-    <script src="shop.js"></script>
+    <script src="shop.js?v=2"></script>
 </body>
 </html>
+
+
