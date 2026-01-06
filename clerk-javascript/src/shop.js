@@ -70,7 +70,7 @@ function loadClerkScript() {
         const script = document.createElement('script');
         script.async = true;
         script.crossOrigin = 'anonymous';
-        script.src = 'https://js.clerk.dev/npm/clerk.browser.js';
+        script.src = 'https://js.clerk.com/npm/clerk.browser.js';
         script.onload = () => resolve();
         script.onerror = () => reject(new Error('Clerk script failed to load.'));
         document.head.appendChild(script);
