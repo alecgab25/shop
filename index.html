@@ -22,8 +22,9 @@
             <div class="header-right">
                 <button id="shop-bg-btn" class="bg-picker-btn" style="display:none;" onclick="openBackgroundPicker('shop')">Change background</button>
                 <button id="admin-login-btn" class="admin-btn" onclick="showAdminLogin()">Admin Login</button>
-                <button id="admin-panel-btn" class="admin-btn" style="display:none;" onclick="showAdminPanel()">âš™ï¸ Admin Panel</button>
-                <button id="user-auth-btn" class="admin-btn" onclick="showUserAuth()">Create Account</button>
+                <button id="admin-panel-btn" class="admin-btn" style="display:none;" onclick="showAdminPanel()">âš™ï¸ Admin Panel</button>
+                <button id="user-signin-btn" class="admin-btn" onclick="showUserAuth('signin')">Sign In</button>
+                <button id="user-auth-btn" class="admin-btn" onclick="showUserAuth('signup')">Create Account</button>
                 <div id="user-session-box" class="user-session-box" style="display:none;">
                     <span id="user-session-email" class="user-session-email"></span>
                     <button class="admin-btn" onclick="userLogout()">Logout</button>
@@ -60,26 +61,6 @@
                     <p class="hint">Only appears until the first admin is created.</p>
                 </div>
                 <p id="admin-login-error" class="error-message"></p>
-            </div>
-        </div>
-
-                <!-- User Auth Modal -->
-        <div id="user-auth-modal" class="modal" style="display:none;">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeUserAuth()">&times;</span>
-                <h2 id="user-auth-title">Create Account</h2>
-                <div class="auth-toggle">
-                    <button id="user-auth-signup-tab" class="auth-tab auth-tab-active" onclick="setUserAuthMode('signup')">Create Account</button>
-                    <button id="user-auth-login-tab" class="auth-tab" onclick="setUserAuthMode('login')">Sign In</button>
-                </div>
-                <input type="email" id="user-email-input" placeholder="Email">
-                <input type="password" id="user-password-input" placeholder="Password">
-                <button id="user-auth-submit" onclick="submitUserAuth()">Create Account</button>
-                <div id="user-auth-helper" class="status-message"></div>
-                <div id="user-verify-actions" class="verify-actions" style="display:none;">
-                    <button id="user-verify-btn" type="button" onclick="verifyUserEmail()">Verify Now</button>
-                </div>
-                <p id="user-auth-error" class="error-message"></p>
             </div>
         </div>
         <!-- Admin Panel Modal -->
@@ -164,8 +145,10 @@
             <button onclick="submitOrder()" class="checkout-submit-btn">Place Order</button>
         </div>
     </div>
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA" src="https://js.clerk.dev/npm/clerk.browser.js"></script>
     <script src="shop.js?v=2"></script>
 </body>
 </html>
+
 
 

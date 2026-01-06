@@ -15,8 +15,7 @@ let backgrounds = {
 let currentAdmin = null; // { email, is_owner }
 let bootstrapNeeded = false;
 let currentUser = null; // { email, is_admin, is_owner }
-let userAuthMode = 'signup';
-let userVerifyUrl = '';
+const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
 
 async function apiFetch(path, options = {}) {
     const opts = { credentials: 'include', ...options };
@@ -57,15 +56,18 @@ function isOwner() {
 
 function showUserUI() {
     const authBtn = document.getElementById('user-auth-btn');
+    const signInBtn = document.getElementById('user-signin-btn');
     const sessionBox = document.getElementById('user-session-box');
     const sessionEmail = document.getElementById('user-session-email');
-    if (!authBtn || !sessionBox || !sessionEmail) return;
+    if (!authBtn || !signInBtn || !sessionBox || !sessionEmail) return;
     if (currentUser) {
         authBtn.style.display = 'none';
+        signInBtn.style.display = 'none';
         sessionBox.style.display = 'flex';
         sessionEmail.textContent = currentUser.email || '';
     } else {
         authBtn.style.display = 'inline-block';
+        signInBtn.style.display = 'inline-block';
         sessionBox.style.display = 'none';
         sessionEmail.textContent = '';
     }
@@ -276,119 +278,64 @@ async function hydrateSession() {
 }
 // --- END ADMIN SYSTEM ---
 
-// --- USER AUTH ---
-function showUserAuth() {
-    const modal = document.getElementById('user-auth-modal');
-    if (!modal) return;
-    document.getElementById('user-email-input').value = '';
-    document.getElementById('user-password-input').value = '';
-    setUserAuthMode('signup');
-    modal.style.display = 'flex';
+// --- USER AUTH (Clerk) ---
+function getClerkUserEmail(user) {
+    if (!user) return '';
+    if (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) {
+        return user.primaryEmailAddress.emailAddress;
+    }
+    if (Array.isArray(user.emailAddresses) && user.emailAddresses.length > 0) {
+        return user.emailAddresses[0].emailAddress || '';
+    }
+    return '';
 }
 
-function closeUserAuth() {
-    const modal = document.getElementById('user-auth-modal');
-    if (!modal) return;
-    modal.style.display = 'none';
-    document.getElementById('user-auth-error').textContent = '';
-    document.getElementById('user-auth-helper').textContent = '';
-    document.getElementById('user-verify-actions').style.display = 'none';
-    userVerifyUrl = '';
+function syncClerkUser() {
+    if (!window.Clerk) return;
+    const user = window.Clerk.user || null;
+    if (user) {
+        currentUser = { email: getClerkUserEmail(user) || user.id };
+    } else {
+        currentUser = null;
+    }
+    showUserUI();
 }
 
-function setUserAuthMode(mode) {
-    userAuthMode = mode === 'login' ? 'login' : 'signup';
-    const title = document.getElementById('user-auth-title');
-    const submit = document.getElementById('user-auth-submit');
-    const signupTab = document.getElementById('user-auth-signup-tab');
-    const loginTab = document.getElementById('user-auth-login-tab');
-    const helper = document.getElementById('user-auth-helper');
-    const error = document.getElementById('user-auth-error');
-    const verifyActions = document.getElementById('user-verify-actions');
-
-    if (title) title.textContent = userAuthMode === 'signup' ? 'Create Account' : 'Sign In';
-    if (submit) submit.textContent = userAuthMode === 'signup' ? 'Create Account' : 'Sign In';
-    if (signupTab) signupTab.className = userAuthMode === 'signup' ? 'auth-tab auth-tab-active' : 'auth-tab';
-    if (loginTab) loginTab.className = userAuthMode === 'login' ? 'auth-tab auth-tab-active' : 'auth-tab';
-    if (helper) helper.textContent = '';
-    if (error) error.textContent = '';
-    if (verifyActions) verifyActions.style.display = 'none';
-    userVerifyUrl = '';
-}
-
-async function submitUserAuth() {
-    const email = document.getElementById('user-email-input').value.trim().toLowerCase();
-    const password = document.getElementById('user-password-input').value;
-    const errorEl = document.getElementById('user-auth-error');
-    const helperEl = document.getElementById('user-auth-helper');
-    const verifyActions = document.getElementById('user-verify-actions');
-    errorEl.textContent = '';
-    helperEl.textContent = '';
-    verifyActions.style.display = 'none';
-
-    if (!email || !password) {
-        errorEl.textContent = 'Email and password are required.';
+async function initClerk() {
+    if (!window.Clerk) {
+        console.error('Clerk script not loaded.');
         return;
     }
-
-    try {
-        if (userAuthMode === 'signup') {
-            const data = await apiFetch('/api/users/register', {
-                method: 'POST',
-                body: JSON.stringify({ email, password })
-            });
-            helperEl.textContent = 'Account created. Verify your email to sign in.';
-            if (data && data.verify_url) {
-                userVerifyUrl = data.verify_url;
-                verifyActions.style.display = 'block';
-            }
-        } else {
-            const session = await apiFetch('/api/users/login', {
-                method: 'POST',
-                body: JSON.stringify({ email, password })
-            });
-            currentUser = session;
-            showUserUI();
-            closeUserAuth();
-        }
-    } catch (err) {
-        errorEl.textContent = (err.data && err.data.error) || 'Request failed.';
+    await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+    syncClerkUser();
+    if (typeof window.Clerk.addListener === 'function') {
+        window.Clerk.addListener(syncClerkUser);
     }
 }
 
-async function verifyUserEmail() {
-    const helperEl = document.getElementById('user-auth-helper');
-    const errorEl = document.getElementById('user-auth-error');
-    if (!userVerifyUrl) return;
-    helperEl.textContent = '';
-    errorEl.textContent = '';
-    try {
-        await apiFetch(userVerifyUrl);
-        helperEl.textContent = 'Email verified. You can sign in now.';
-        setUserAuthMode('login');
-    } catch (err) {
-        errorEl.textContent = (err.data && err.data.error) || 'Could not verify email.';
+function showUserAuth(mode) {
+    if (!window.Clerk) {
+        alert('Sign in is still loading. Please try again.');
+        return;
+    }
+    if (mode === 'signin') {
+        window.Clerk.openSignIn();
+    } else {
+        window.Clerk.openSignUp();
     }
 }
 
 async function userLogout() {
-    try {
-        await apiFetch('/api/user-session', { method: 'DELETE' });
-    } catch (err) {
-        // ignore logout errors
+    if (window.Clerk) {
+        await window.Clerk.signOut();
     }
     currentUser = null;
     showUserUI();
 }
 
 async function hydrateUserSession() {
-    try {
-        const session = await apiFetch('/api/user-session');
-        currentUser = session;
-    } catch (_err) {
-        currentUser = null;
-    }
-    showUserUI();
+    if (!window.Clerk) return;
+    syncClerkUser();
 }
 // --- END USER AUTH ---
 
@@ -1109,6 +1056,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize admin system
     hydrateSession();
+    initClerk();
     hydrateUserSession();
     fetchBackgrounds();
     
@@ -1140,7 +1088,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.onclick = function(event) {
         const loginModal = document.getElementById('admin-login-modal');
         const panelModal = document.getElementById('admin-panel-modal');
-        const userAuthModal = document.getElementById('user-auth-modal');
         const productModal = document.getElementById('product-modal');
         const checkoutModal = document.getElementById('checkout-modal');
         if (event.target === loginModal) {
@@ -1148,9 +1095,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (event.target === panelModal) {
             closeAdminPanel();
-        }
-        if (event.target === userAuthModal) {
-            closeUserAuth();
         }
         if (event.target === productModal) {
             closeProductDetail();
