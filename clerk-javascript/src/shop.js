@@ -10,7 +10,8 @@ let backgrounds = {
     front_page: { color: '', image: '' },
     shop: { color: '', image: '' },
 };
-let currentUser = null; // { email, is_admin, is_owner }
+let currentUser = null; // { email }
+const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
 
 // --- ADMIN SYSTEM ---
 let currentAdmin = null; // { email, is_owner }
@@ -32,144 +33,16 @@ async function apiFetch(path, options = {}) {
     return data;
 }
 
-// --- USER AUTH GATE ---
-async function userLogin() {
-    const email = (document.getElementById('auth-email')?.value || '').trim().toLowerCase();
-    const password = document.getElementById('auth-password')?.value || '';
-    const errEl = document.getElementById('auth-error');
-    const infoEl = document.getElementById('auth-info');
-    if (errEl) errEl.textContent = '';
-    if (infoEl) infoEl.textContent = '';
-    if (!email || !password) {
-        if (errEl) errEl.textContent = 'Email and password are required.';
-        return;
+// --- USER AUTH (Clerk) ---
+function getClerkUserEmail(user) {
+    if (!user) return '';
+    if (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) {
+        return user.primaryEmailAddress.emailAddress;
     }
-    try {
-        const user = await apiFetch('/api/users/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-        currentUser = user;
-        if (user.is_admin) {
-            currentAdmin = { email: user.email, is_owner: !!user.is_owner };
-        }
-        hideAuthOverlay();
-        await hydrateSession(); // refresh admin state if applicable
-        updateUserUI();
-    } catch (err) {
-        if (err.status === 403 && infoEl) {
-            infoEl.textContent = 'Please confirm the verification link sent to your email.';
-        } else if (err.status === 401 && infoEl) {
-            infoEl.textContent = 'Account not found. Please create an account first.';
-        }
-        if (errEl) errEl.textContent = (err.data && err.data.error) || 'Login failed.';
+    if (Array.isArray(user.emailAddresses) && user.emailAddresses.length > 0) {
+        return user.emailAddresses[0].emailAddress || '';
     }
-}
-
-async function userRegister() {
-    const email = (document.getElementById('auth-email')?.value || '').trim().toLowerCase();
-    const password = document.getElementById('auth-password')?.value || '';
-    const errEl = document.getElementById('auth-error');
-    const infoEl = document.getElementById('auth-info');
-    if (errEl) errEl.textContent = '';
-    if (infoEl) infoEl.textContent = '';
-    if (!email || !password) {
-        if (errEl) errEl.textContent = 'Email and password are required.';
-        return;
-    }
-    try {
-        const resp = await apiFetch('/api/users/register', { method: 'POST', body: JSON.stringify({ email, password }) });
-        if (infoEl) infoEl.textContent = 'Check your email to verify your account. (Dev hint: ' + (resp.verify_url || '') + ')';
-    } catch (err) {
-        if (errEl) errEl.textContent = (err.data && err.data.error) || 'Could not create account.';
-    }
-}
-
-async function requestPasswordReset() {
-    const email = (document.getElementById('auth-email')?.value || '').trim().toLowerCase();
-    const errEl = document.getElementById('auth-error');
-    const infoEl = document.getElementById('auth-info');
-    if (errEl) errEl.textContent = '';
-    if (infoEl) infoEl.textContent = '';
-    if (!email) {
-        if (errEl) errEl.textContent = 'Email is required to reset password.';
-        return;
-    }
-    try {
-        await apiFetch('/api/users/reset-request', { method: 'POST', body: JSON.stringify({ email }) });
-        if (infoEl) infoEl.textContent = 'If this email exists, a reset link was sent. Check your inbox.';
-        showResetFields(false);
-    } catch (err) {
-        if (errEl) errEl.textContent = (err.data && err.data.error) || 'Could not send reset link.';
-    }
-}
-
-async function confirmPasswordReset() {
-    const token = (document.getElementById('reset-token')?.value || '').trim();
-    const newPass = (document.getElementById('reset-new-password')?.value || '').trim();
-    const errEl = document.getElementById('auth-error');
-    const infoEl = document.getElementById('auth-info');
-    if (errEl) errEl.textContent = '';
-    if (infoEl) infoEl.textContent = '';
-    if (!token || !newPass) {
-        if (errEl) errEl.textContent = 'Token and new password are required.';
-        return;
-    }
-    try {
-        await apiFetch('/api/users/reset-confirm', { method: 'POST', body: JSON.stringify({ token, password: newPass }) });
-        if (infoEl) infoEl.textContent = 'Password updated. You can now sign in.';
-        const tokenEl = document.getElementById('reset-token');
-        const passEl = document.getElementById('reset-new-password');
-        if (tokenEl) tokenEl.value = '';
-        if (passEl) passEl.value = '';
-        showResetFields(false);
-    } catch (err) {
-        if (errEl) errEl.textContent = (err.data && err.data.error) || 'Could not reset password.';
-    }
-}
-
-function showResetFields(show = true) {
-    const resetEl = document.getElementById('reset-fields');
-    if (!resetEl) return;
-    resetEl.style.display = show ? 'block' : 'none';
-    if (!show) {
-        const tokenEl = document.getElementById('reset-token');
-        const passEl = document.getElementById('reset-new-password');
-        if (tokenEl) tokenEl.value = '';
-        if (passEl) passEl.value = '';
-    }
-}
-
-function handleResetTokenFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const token = (params.get('reset_token') || '').trim();
-    if (!token) return;
-    showAuthOverlay();
-    showResetFields(true);
-    const tokenEl = document.getElementById('reset-token');
-    if (tokenEl) tokenEl.value = token;
-    const infoEl = document.getElementById('auth-info');
-    if (infoEl) infoEl.textContent = 'Enter a new password to finish resetting.';
-    params.delete('reset_token');
-    const nextQuery = params.toString();
-    const nextUrl = window.location.pathname + (nextQuery ? `?${nextQuery}` : '') + window.location.hash;
-    window.history.replaceState({}, document.title, nextUrl);
-}
-
-function hideAuthOverlay() {
-    const overlay = document.getElementById('auth-overlay');
-    if (overlay) overlay.style.display = 'none';
-}
-
-function showAuthOverlay() {
-    const overlay = document.getElementById('auth-overlay');
-    if (overlay) overlay.style.display = 'flex';
-    const errEl = document.getElementById('auth-error');
-    const infoEl = document.getElementById('auth-info');
-    const emailEl = document.getElementById('auth-email');
-    const passEl = document.getElementById('auth-password');
-    if (errEl) errEl.textContent = '';
-    if (infoEl) infoEl.textContent = '';
-    if (emailEl) emailEl.value = '';
-    if (passEl) passEl.value = '';
-    showResetFields(false);
+    return '';
 }
 
 function updateUserUI() {
@@ -179,34 +52,50 @@ function updateUserUI() {
     if (signinBtn) signinBtn.style.display = currentUser ? 'none' : 'inline-block';
 }
 
-async function hydrateUser() {
-    try {
-        const user = await apiFetch('/api/user-session');
-        currentUser = user;
-        if (user.is_admin) {
-            currentAdmin = { email: user.email, is_owner: !!user.is_owner };
-        } else {
-            currentAdmin = null;
-        }
-        hideAuthOverlay();
-        showAdminUI();
-        renderProducts();
-        updateUserUI();
-    } catch (_err) {
-        currentUser = null;
-        currentAdmin = null;
-        updateUserUI();
+function syncClerkUser() {
+    if (!window.Clerk) return;
+    const user = window.Clerk.user || null;
+    currentUser = user ? { email: getClerkUserEmail(user) || user.id } : null;
+    if (!currentUser) currentAdmin = null;
+    updateUserUI();
+}
+
+async function initClerk() {
+    if (!window.Clerk) {
+        console.error('Clerk script not loaded.');
+        return;
+    }
+    await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+    syncClerkUser();
+    if (typeof window.Clerk.addListener === 'function') {
+        window.Clerk.addListener(syncClerkUser);
+    }
+}
+
+function showUserAuth(mode) {
+    if (!window.Clerk) {
+        alert('Sign in is still loading. Please try again.');
+        return;
+    }
+    if (mode === 'signin') {
+        window.Clerk.openSignIn();
+    } else {
+        window.Clerk.openSignUp();
     }
 }
 
 async function userLogout() {
-    try {
-        await apiFetch('/api/user-session', { method: 'DELETE' });
-    } catch (_err) {}
+    if (window.Clerk) {
+        await window.Clerk.signOut();
+    }
     currentUser = null;
     currentAdmin = null;
     showAdminUI();
     updateUserUI();
+}
+
+async function hydrateUser() {
+    syncClerkUser();
 }
 
 function showAdminUI() {
@@ -1151,8 +1040,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize admin system
     hydrateSession();
+    initClerk();
     hydrateUser();
-    handleResetTokenFromUrl();
     fetchBackgrounds();
     updateUserUI();
     
@@ -1228,10 +1117,5 @@ window.nextProductImage = nextProductImage;
 window.prevProductImage = prevProductImage;
 window.openBackgroundPicker = openBackgroundPicker;
 window.saveBackgrounds = saveBackgrounds;
-window.userLogin = userLogin;
-window.userRegister = userRegister;
+window.showUserAuth = showUserAuth;
 window.userLogout = userLogout;
-window.showAuthOverlay = showAuthOverlay;
-window.requestPasswordReset = requestPasswordReset;
-window.confirmPasswordReset = confirmPasswordReset;
-window.showResetFields = showResetFields;

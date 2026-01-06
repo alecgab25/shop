@@ -7,7 +7,7 @@
 </head>
 <body>
     <div id="front-page" class="front-page">
-        <button id="front-signin-btn" class="signin-btn" onclick="showAuthOverlay()">Sign In</button>
+        <button id="front-signin-btn" class="signin-btn" onclick="showUserAuth('signin')">Sign In</button>
         <button id="front-bg-btn" class="bg-picker-btn" style="display:none;" onclick="openBackgroundPicker('front_page')">Change background</button>
         <button id="front-signout-btn" class="signout-btn" style="display:none;" onclick="userLogout()">Sign Out</button>
         <div class="overlay">
@@ -140,32 +140,7 @@
             <button onclick="submitOrder()" class="checkout-submit-btn">Place Order</button>
         </div>
     </div>
-    <!-- Auth overlay -->
-    <div id="auth-overlay" class="auth-overlay" style="display:none;">
-        <div class="auth-card">
-            <h2>Sign in to continue</h2>
-            <p>Use your email and password or create a new account.</p>
-            <input type="email" id="auth-email" placeholder="Email">
-            <input type="password" id="auth-password" placeholder="Password">
-            <div class="auth-actions">
-                <button class="btn-login" onclick="userLogin()">Sign In</button>
-                <button class="btn-register" onclick="userRegister()">Create Account</button>
-            </div>
-            <div class="auth-actions">
-                <button class="btn-reset" onclick="requestPasswordReset()">Forgot password?</button>
-            </div>
-            <div class="reset-fields" id="reset-fields">
-                <input type="text" id="reset-token" placeholder="Reset token">
-                <input type="password" id="reset-new-password" placeholder="New password">
-                <div class="auth-actions">
-                    <button class="btn-login" onclick="confirmPasswordReset()">Set new password</button>
-                    <button class="btn-register" onclick="showResetFields(false)">Back</button>
-                </div>
-            </div>
-            <div id="auth-error" class="auth-error"></div>
-            <div id="auth-info" class="auth-info"></div>
-        </div>
-    </div>
+    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA" src="https://js.clerk.dev/npm/clerk.browser.js"></script>
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>
