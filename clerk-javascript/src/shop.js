@@ -14,6 +14,7 @@ let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
 let clerkReady = false;
 let clerkLoader = null;
+let clerkInitError = null;
 
 // --- ADMIN SYSTEM ---
 let currentAdmin = null; // { email, is_owner }
@@ -79,24 +80,31 @@ function loadClerkScript() {
 
 async function initClerk() {
     if (clerkReady) return;
-    await loadClerkScript();
-    if (!window.Clerk) {
-        console.error('Clerk script not loaded.');
-        return;
+    try {
+        await loadClerkScript();
+        if (!window.Clerk) {
+            throw new Error('Clerk script not loaded.');
+        }
+        await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+        syncClerkUser();
+        if (typeof window.Clerk.addListener === 'function') {
+            window.Clerk.addListener(syncClerkUser);
+        }
+        clerkReady = true;
+        clerkInitError = null;
+    } catch (err) {
+        clerkInitError = err;
+        console.error('Clerk init failed:', err);
+        throw err;
     }
-    await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
-    syncClerkUser();
-    if (typeof window.Clerk.addListener === 'function') {
-        window.Clerk.addListener(syncClerkUser);
-    }
-    clerkReady = true;
 }
 
 async function showUserAuth(mode) {
     try {
         await initClerk();
     } catch (_err) {
-        alert('Sign in is still loading. Please try again.');
+        const message = (clerkInitError && clerkInitError.message) ? clerkInitError.message : 'Sign in is still loading.';
+        alert(message + ' If this keeps happening, add your site URL to Clerk Application domains.');
         return;
     }
     if (!window.Clerk) {
