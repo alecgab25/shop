@@ -12,6 +12,10 @@ let backgrounds = {
 };
 let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
+const CLERK_SCRIPT_URLS = [
+    'https://js.clerk.com/npm/clerk.browser.js',
+    'https://js.clerk.dev/npm/clerk.browser.js'
+];
 let clerkReady = false;
 let clerkLoader = null;
 let clerkInitError = null;
@@ -63,18 +67,49 @@ function syncClerkUser() {
     updateUserUI();
 }
 
-function loadClerkScript() {
-    if (window.Clerk) return Promise.resolve();
-    if (clerkLoader) return clerkLoader;
-    clerkLoader = new Promise((resolve, reject) => {
+function loadClerkScriptFromUrl(url) {
+    return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.async = true;
         script.crossOrigin = 'anonymous';
-        script.src = 'https://js.clerk.com/npm/clerk.browser.js';
+        script.src = url;
+        script.dataset.clerkPublishableKey = CLERK_PUBLISHABLE_KEY;
         script.onload = () => resolve();
         script.onerror = () => reject(new Error('Clerk script failed to load.'));
         document.head.appendChild(script);
     });
+}
+
+function loadClerkScript() {
+    if (window.Clerk) return Promise.resolve();
+    if (clerkLoader) return clerkLoader;
+
+    const existingScript = document.querySelector('script[src*="clerk.browser.js"]');
+    if (existingScript) {
+        clerkLoader = new Promise((resolve, reject) => {
+            if (window.Clerk) {
+                resolve();
+                return;
+            }
+            existingScript.addEventListener('load', () => resolve(), { once: true });
+            existingScript.addEventListener('error', () => reject(new Error('Clerk script failed to load.')), { once: true });
+        });
+        return clerkLoader;
+    }
+
+    clerkLoader = (async () => {
+        let lastError = null;
+        for (const url of CLERK_SCRIPT_URLS) {
+            try {
+                await loadClerkScriptFromUrl(url);
+                return;
+            } catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError || new Error('Clerk script failed to load.');
+    })();
+
     return clerkLoader;
 }
 
