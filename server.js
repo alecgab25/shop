@@ -1,20 +1,20 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const argon2 = require('argon2');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
-const DATA_FILE = path.join(__dirname, 'data.json');
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const USER_SESSION_COOKIE = 'user_session';
 const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const secureCookies = process.env.NODE_ENV === 'production';
 const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
+const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
 const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
@@ -35,76 +35,157 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(__dirname));
 
-// --- simple file storage ---
-function loadDB() {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed.users) parsed.users = [];
-    if (!parsed.user_sessions) parsed.user_sessions = [];
-    if (!parsed.reset_tokens) parsed.reset_tokens = [];
-    parsed.users = parsed.users.map((u) => ({
-      ...u,
-      verified: u.verified !== false,
-      verify_token: u.verify_token || null,
-    }));
-    if (!parsed.backgrounds) {
-      parsed.backgrounds = {
-        front_page: { color: '', image: '' },
-        shop: { color: '', image: '' },
-      };
-    }
-    return parsed;
-  } catch (_e) {
-    return {
-      admins: [],
-      sessions: [],
-      users: [],
-      user_sessions: [],
-      reset_tokens: [],
-      bank_info: { account_name: '', account_number: '', instructions: '' },
-      backgrounds: {
-        front_page: { color: '', image: '' },
-        shop: { color: '', image: '' },
-      },
-      orders: [],
-      lastOrderId: 0,
-    };
+if (!MONGODB_URI) {
+  console.error('Missing MONGODB_URI in environment.');
+  process.exit(1);
+}
+
+const adminSchema = new mongoose.Schema(
+  {
+    _id: String,
+    email: { type: String, unique: true, index: true },
+    password_hash: String,
+    is_owner: Boolean,
+    created_at: String,
+  },
+  { collection: 'admins' }
+);
+
+const sessionSchema = new mongoose.Schema(
+  {
+    _id: String,
+    admin_id: String,
+    expires_at: Number,
+    user_agent: String,
+    ip: String,
+  },
+  { collection: 'sessions' }
+);
+
+const userSchema = new mongoose.Schema(
+  {
+    _id: String,
+    email: { type: String, unique: true, index: true },
+    password_hash: String,
+    verified: Boolean,
+    verify_token: String,
+    created_at: String,
+  },
+  { collection: 'users' }
+);
+
+const userSessionSchema = new mongoose.Schema(
+  {
+    _id: String,
+    email: String,
+    expires_at: Number,
+    user_agent: String,
+    ip: String,
+  },
+  { collection: 'user_sessions' }
+);
+
+const resetTokenSchema = new mongoose.Schema(
+  {
+    _id: String,
+    email: String,
+    target: String,
+    expires_at: Number,
+  },
+  { collection: 'reset_tokens' }
+);
+
+const settingsSchema = new mongoose.Schema(
+  {
+    _id: String,
+    bank_info: {
+      account_name: String,
+      account_number: String,
+      instructions: String,
+    },
+    backgrounds: {
+      front_page: { color: String, image: String },
+      shop: { color: String, image: String },
+    },
+  },
+  { collection: 'settings' }
+);
+
+const orderSchema = new mongoose.Schema(
+  {
+    id: Number,
+    customer_name: String,
+    email: String,
+    address_line: String,
+    city: String,
+    region: String,
+    postal_code: String,
+    items: Array,
+    total_cents: Number,
+    created_at: String,
+  },
+  { collection: 'orders' }
+);
+
+const counterSchema = new mongoose.Schema(
+  {
+    _id: String,
+    value: { type: Number, default: 0 },
+  },
+  { collection: 'counters' }
+);
+
+const Admin = mongoose.model('Admin', adminSchema);
+const Session = mongoose.model('Session', sessionSchema);
+const User = mongoose.model('User', userSchema);
+const UserSession = mongoose.model('UserSession', userSessionSchema);
+const ResetToken = mongoose.model('ResetToken', resetTokenSchema);
+const Settings = mongoose.model('Settings', settingsSchema);
+const Order = mongoose.model('Order', orderSchema);
+const Counter = mongoose.model('Counter', counterSchema);
+
+const DEFAULT_SETTINGS = {
+  bank_info: { account_name: '', account_number: '', instructions: '' },
+  backgrounds: {
+    front_page: { color: '', image: '' },
+    shop: { color: '', image: '' },
+  },
+};
+
+async function getSettingsDoc() {
+  let doc = await Settings.findById('global').lean();
+  if (!doc) {
+    await Settings.create({ _id: 'global', ...DEFAULT_SETTINGS });
+    doc = await Settings.findById('global').lean();
   }
+  return doc;
 }
 
-function saveDB(db) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2), 'utf-8');
+async function countAdmins() {
+  return Admin.countDocuments();
 }
 
-let db = loadDB();
-
-function countAdmins() {
-  return db.admins.length;
+async function getSession(id) {
+  return Session.findById(id).lean();
 }
 
-function getSession(id) {
-  return db.sessions.find((s) => s.id === id) || null;
-}
-
-function deleteSession(id) {
-  db.sessions = db.sessions.filter((s) => s.id !== id);
-  saveDB(db);
+async function deleteSession(id) {
+  await Session.deleteOne({ _id: id });
 }
 
 function sessionMiddleware(opts = {}) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const sid = req.cookies[SESSION_COOKIE];
     if (!sid) return res.status(401).end();
-    const session = getSession(sid);
+    const session = await getSession(sid);
     if (!session || session.expires_at < Date.now()) {
-      deleteSession(sid);
+      await deleteSession(sid);
       res.clearCookie(SESSION_COOKIE);
       return res.status(401).end();
     }
-    const admin = db.admins.find((a) => a.id === session.admin_id);
+    const admin = await Admin.findById(session.admin_id).lean();
     if (!admin) {
-      deleteSession(sid);
+      await deleteSession(sid);
       res.clearCookie(SESSION_COOKIE);
       return res.status(401).end();
     }
@@ -124,13 +205,12 @@ function setSessionCookie(res, sid) {
   });
 }
 
-function getUserSession(id) {
-  return db.user_sessions.find((s) => s.id === id) || null;
+async function getUserSession(id) {
+  return UserSession.findById(id).lean();
 }
 
-function deleteUserSession(id) {
-  db.user_sessions = db.user_sessions.filter((s) => s.id !== id);
-  saveDB(db);
+async function deleteUserSession(id) {
+  await UserSession.deleteOne({ _id: id });
 }
 
 function setUserSessionCookie(res, sid) {
@@ -143,12 +223,12 @@ function setUserSessionCookie(res, sid) {
 }
 
 function userSessionMiddleware() {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const sid = req.cookies[USER_SESSION_COOKIE];
     if (!sid) return res.status(401).end();
-    const session = getUserSession(sid);
+    const session = await getUserSession(sid);
     if (!session || session.expires_at < Date.now()) {
-      deleteUserSession(sid);
+      await deleteUserSession(sid);
       res.clearCookie(USER_SESSION_COOKIE);
       return res.status(401).end();
     }
@@ -159,17 +239,27 @@ function userSessionMiddleware() {
 
 // --- routes ---
 app.get('/api/admins/has-admin', (req, res) => {
-  res.json({ hasAdmin: countAdmins() > 0 });
+  countAdmins()
+    .then((count) => res.json({ hasAdmin: count > 0 }))
+    .catch((err) => {
+      console.error('Has-admin failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 app.post('/api/admins/bootstrap', async (req, res) => {
-  if (countAdmins() > 0) return res.status(403).json({ error: 'Already bootstrapped' });
+  if ((await countAdmins()) > 0) return res.status(403).json({ error: 'Already bootstrapped' });
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const hash = await argon2.hash(password);
   const id = crypto.randomUUID();
-  db.admins.push({ id, email: email.toLowerCase(), password_hash: hash, is_owner: true, created_at: new Date().toISOString() });
-  saveDB(db);
+  await Admin.create({
+    _id: id,
+    email: email.toLowerCase(),
+    password_hash: hash,
+    is_owner: true,
+    created_at: new Date().toISOString(),
+  });
   res.status(201).end();
 });
 
@@ -178,20 +268,21 @@ app.post('/api/users/register', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const lower = email.toLowerCase();
-  if (db.users.find((u) => u.email === lower) || db.admins.find((a) => a.email === lower)) {
+  const existingUser = await User.findOne({ email: lower }).lean();
+  const existingAdmin = await Admin.findOne({ email: lower }).lean();
+  if (existingUser || existingAdmin) {
     return res.status(409).json({ error: 'Email already in use' });
   }
   const hash = await argon2.hash(password);
   const verifyToken = crypto.randomUUID();
-  db.users.push({
-    id: crypto.randomUUID(),
+  await User.create({
+    _id: crypto.randomUUID(),
     email: lower,
     password_hash: hash,
     verified: false,
     verify_token: verifyToken,
     created_at: new Date().toISOString(),
   });
-  saveDB(db);
   const verifyUrl = `/api/users/verify?token=${verifyToken}`;
   res.status(201).json({ message: 'Check your inbox to verify.', verify_url: verifyUrl });
 });
@@ -201,15 +292,15 @@ app.post('/api/users/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const lower = email.toLowerCase();
   // If email is admin, verify admin credentials and issue both sessions
-  const admin = db.admins.find((a) => a.email === lower);
+  const admin = await Admin.findOne({ email: lower }).lean();
   if (admin) {
     const ok = await argon2.verify(admin.password_hash, password || '');
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     const sid = crypto.randomUUID();
     const expiresAt = Date.now() + SESSION_TTL_MS;
-    db.sessions.push({
-      id: sid,
-      admin_id: admin.id,
+    await Session.create({
+      _id: sid,
+      admin_id: admin._id,
       expires_at: expiresAt,
       user_agent: req.headers['user-agent'] || '',
       ip: req.ip || '',
@@ -217,33 +308,31 @@ app.post('/api/users/login', async (req, res) => {
     setSessionCookie(res, sid);
     // also issue user session
     const userSid = crypto.randomUUID();
-    db.user_sessions.push({
-      id: userSid,
+    await UserSession.create({
+      _id: userSid,
       email: admin.email,
       expires_at: expiresAt,
       user_agent: req.headers['user-agent'] || '',
       ip: req.ip || '',
     });
-    saveDB(db);
     setUserSessionCookie(res, userSid);
     return res.json({ email: admin.email, is_admin: true, is_owner: !!admin.is_owner });
   }
   // regular user
-  const user = db.users.find((u) => u.email === lower);
+  const user = await User.findOne({ email: lower }).lean();
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.verified === false) return res.status(403).json({ error: 'Please verify your email before signing in.' });
   const ok = await argon2.verify(user.password_hash, password || '');
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const userSid = crypto.randomUUID();
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  db.user_sessions.push({
-    id: userSid,
+  await UserSession.create({
+    _id: userSid,
     email: user.email,
     expires_at: expiresAt,
     user_agent: req.headers['user-agent'] || '',
     ip: req.ip || '',
   });
-  saveDB(db);
   setUserSessionCookie(res, userSid);
   res.json({ email: user.email, is_admin: false, is_owner: false });
 });
@@ -253,8 +342,8 @@ app.post('/api/users/reset-request', async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ error: 'Email required' });
   const lower = email.toLowerCase();
-  const isAdmin = !!db.admins.find((a) => a.email === lower);
-  const isUser = !!db.users.find((u) => u.email === lower);
+  const isAdmin = !!(await Admin.findOne({ email: lower }).lean());
+  const isUser = !!(await User.findOne({ email: lower }).lean());
   if (!isAdmin && !isUser) {
     return res.json({ message: 'If this email exists, a reset link was sent.' });
   }
@@ -283,9 +372,8 @@ app.post('/api/users/reset-request', async (req, res) => {
     console.error('Reset email failed:', err);
     return res.status(500).json({ error: 'Could not send reset email.' });
   }
-  db.reset_tokens = db.reset_tokens.filter((t) => t.email !== lower);
-  db.reset_tokens.push({ token, email: lower, target, expires_at: expiresAt });
-  saveDB(db);
+  await ResetToken.deleteMany({ email: lower });
+  await ResetToken.create({ _id: token, email: lower, target, expires_at: expiresAt });
   res.json({ message: 'If this email exists, a reset link was sent.' });
 });
 
@@ -293,50 +381,50 @@ app.post('/api/users/reset-confirm', async (req, res) => {
   const token = (req.body && req.body.token) || (req.query && req.query.token);
   const password = req.body && req.body.password;
   if (!token || !password) return res.status(400).json({ error: 'Token and new password required' });
-  const entry = db.reset_tokens.find((t) => t.token === token);
+  const entry = await ResetToken.findById(token).lean();
   if (!entry) return res.status(400).json({ error: 'Invalid or expired token' });
   if (entry.expires_at < Date.now()) {
-    db.reset_tokens = db.reset_tokens.filter((t) => t.token !== token);
-    saveDB(db);
+    await ResetToken.deleteOne({ _id: token });
     return res.status(400).json({ error: 'Invalid or expired token' });
   }
   const hash = await argon2.hash(password);
   if (entry.target === 'admin') {
-    const admin = db.admins.find((a) => a.email === entry.email);
-    if (admin) admin.password_hash = hash;
+    await Admin.updateOne({ email: entry.email }, { $set: { password_hash: hash } });
   } else {
-    const user = db.users.find((u) => u.email === entry.email);
-    if (user) {
-      user.password_hash = hash;
-      user.verified = true;
-      user.verify_token = null;
-    }
+    await User.updateOne(
+      { email: entry.email },
+      { $set: { password_hash: hash, verified: true, verify_token: null } }
+    );
   }
-  db.reset_tokens = db.reset_tokens.filter((t) => t.email !== entry.email);
-  saveDB(db);
+  await ResetToken.deleteMany({ email: entry.email });
   res.json({ success: true });
 });
 
-app.get('/api/users/verify', (req, res) => {
+app.get('/api/users/verify', async (req, res) => {
   const token = (req.query.token || '').toString();
   if (!token) return res.status(400).json({ error: 'Missing token' });
-  const user = db.users.find((u) => u.verify_token === token);
+  const user = await User.findOne({ verify_token: token }).lean();
   if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
-  user.verified = true;
-  user.verify_token = null;
-  saveDB(db);
+  await User.updateOne({ _id: user._id }, { $set: { verified: true, verify_token: null } });
   res.json({ success: true });
 });
 
 app.get('/api/user-session', userSessionMiddleware(), (req, res) => {
   const email = req.userEmail || '';
-  const admin = db.admins.find((a) => a.email === email);
-  res.json({ email, is_admin: !!admin, is_owner: !!(admin && admin.is_owner) });
+  Admin.findOne({ email })
+    .lean()
+    .then((admin) => {
+      res.json({ email, is_admin: !!admin, is_owner: !!(admin && admin.is_owner) });
+    })
+    .catch((err) => {
+      console.error('User session lookup failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
-app.delete('/api/user-session', userSessionMiddleware(), (req, res) => {
+app.delete('/api/user-session', userSessionMiddleware(), async (req, res) => {
   const sid = req.cookies[USER_SESSION_COOKIE];
-  if (sid) deleteUserSession(sid);
+  if (sid) await deleteUserSession(sid);
   res.clearCookie(USER_SESSION_COOKIE);
   res.clearCookie(SESSION_COOKIE);
   res.status(204).end();
@@ -344,20 +432,19 @@ app.delete('/api/user-session', userSessionMiddleware(), (req, res) => {
 
 app.post('/api/sessions', async (req, res) => {
   const { email, password } = req.body || {};
-  const admin = db.admins.find((a) => a.email === (email || '').toLowerCase());
+  const admin = await Admin.findOne({ email: (email || '').toLowerCase() }).lean();
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
   const ok = await argon2.verify(admin.password_hash, password || '');
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const sid = crypto.randomUUID();
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  db.sessions.push({
-    id: sid,
-    admin_id: admin.id,
+  await Session.create({
+    _id: sid,
+    admin_id: admin._id,
     expires_at: expiresAt,
     user_agent: req.headers['user-agent'] || '',
     ip: req.ip || '',
   });
-  saveDB(db);
   setSessionCookie(res, sid);
   res.json({ email: admin.email, is_owner: !!admin.is_owner });
 });
@@ -366,59 +453,74 @@ app.get('/api/session', sessionMiddleware(), (req, res) => {
   res.json({ email: req.admin.email, is_owner: !!req.admin.is_owner });
 });
 
-app.delete('/api/sessions', sessionMiddleware(), (req, res) => {
-  deleteSession(req.sessionId);
+app.delete('/api/sessions', sessionMiddleware(), async (req, res) => {
+  await deleteSession(req.sessionId);
   res.clearCookie(SESSION_COOKIE);
   res.status(204).end();
 });
 
-app.get('/api/admins', sessionMiddleware({ owner: true }), (req, res) => {
-  const admins = db.admins
-    .slice()
-    .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
-    .map((a) => ({ id: a.id, email: a.email, is_owner: !!a.is_owner, created_at: a.created_at }));
-  res.json(admins);
+app.get('/api/admins', sessionMiddleware({ owner: true }), async (req, res) => {
+  const admins = await Admin.find()
+    .sort({ created_at: 1 })
+    .lean();
+  res.json(
+    admins.map((a) => ({ id: a._id, email: a.email, is_owner: !!a.is_owner, created_at: a.created_at }))
+  );
 });
 
 app.post('/api/admins', sessionMiddleware({ owner: true }), async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (db.admins.find((a) => a.email === email.toLowerCase())) return res.status(409).json({ error: 'Email already admin' });
+  if (await Admin.findOne({ email: email.toLowerCase() }).lean()) return res.status(409).json({ error: 'Email already admin' });
   const hash = await argon2.hash(password);
-  db.admins.push({
-    id: crypto.randomUUID(),
+  await Admin.create({
+    _id: crypto.randomUUID(),
     email: email.toLowerCase(),
     password_hash: hash,
     is_owner: false,
     created_at: new Date().toISOString(),
   });
-  saveDB(db);
   res.status(201).end();
 });
 
-app.delete('/api/admins/:id', sessionMiddleware({ owner: true }), (req, res) => {
-  const admin = db.admins.find((a) => a.id === req.params.id);
+app.delete('/api/admins/:id', sessionMiddleware({ owner: true }), async (req, res) => {
+  const admin = await Admin.findById(req.params.id).lean();
   if (!admin) return res.status(404).end();
   if (admin.is_owner) return res.status(400).json({ error: 'Cannot remove owner' });
-  db.admins = db.admins.filter((a) => a.id !== req.params.id);
-  saveDB(db);
+  await Admin.deleteOne({ _id: req.params.id });
   res.status(204).end();
 });
 
 // Bank info
 app.get('/api/bank-info', (req, res) => {
-  res.json(db.bank_info || { account_name: '', account_number: '', instructions: '' });
+  getSettingsDoc()
+    .then((doc) => res.json(doc.bank_info || DEFAULT_SETTINGS.bank_info))
+    .catch((err) => {
+      console.error('Bank info fetch failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 app.put('/api/bank-info', sessionMiddleware({ owner: true }), (req, res) => {
   const { account_name, account_number, instructions } = req.body || {};
-  db.bank_info = {
-    account_name: account_name || '',
-    account_number: account_number || '',
-    instructions: instructions || '',
-  };
-  saveDB(db);
-  res.status(204).end();
+  Settings.updateOne(
+    { _id: 'global' },
+    {
+      $set: {
+        bank_info: {
+          account_name: account_name || '',
+          account_number: account_number || '',
+          instructions: instructions || '',
+        },
+      },
+    },
+    { upsert: true }
+  )
+    .then(() => res.status(204).end())
+    .catch((err) => {
+      console.error('Bank info update failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 // Backgrounds (admin/owner)
@@ -427,23 +529,39 @@ app.get('/api/backgrounds', (req, res) => {
     front_page: { color: '', image: '' },
     shop: { color: '', image: '' },
   };
-  res.json(db.backgrounds || defaults);
+  getSettingsDoc()
+    .then((doc) => res.json(doc.backgrounds || defaults))
+    .catch((err) => {
+      console.error('Backgrounds fetch failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 app.put('/api/backgrounds', sessionMiddleware(), (req, res) => {
   const { front_page = {}, shop = {} } = req.body || {};
-  db.backgrounds = {
-    front_page: {
-      color: typeof front_page.color === 'string' ? front_page.color : '',
-      image: typeof front_page.image === 'string' ? front_page.image : '',
+  Settings.updateOne(
+    { _id: 'global' },
+    {
+      $set: {
+        backgrounds: {
+          front_page: {
+            color: typeof front_page.color === 'string' ? front_page.color : '',
+            image: typeof front_page.image === 'string' ? front_page.image : '',
+          },
+          shop: {
+            color: typeof shop.color === 'string' ? shop.color : '',
+            image: typeof shop.image === 'string' ? shop.image : '',
+          },
+        },
+      },
     },
-    shop: {
-      color: typeof shop.color === 'string' ? shop.color : '',
-      image: typeof shop.image === 'string' ? shop.image : '',
-    },
-  };
-  saveDB(db);
-  res.status(204).end();
+    { upsert: true }
+  )
+    .then(() => res.status(204).end())
+    .catch((err) => {
+      console.error('Backgrounds update failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 // Orders
@@ -452,44 +570,64 @@ app.post('/api/orders', (req, res) => {
   if (!customer_name || !address_line || !city || !postal_code || !Array.isArray(items)) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  const id = (db.lastOrderId || 0) + 1;
-  db.lastOrderId = id;
-  db.orders.unshift({
-    id,
-    customer_name,
-    email: email || '',
-    address_line,
-    city,
-    region: region || '',
-    postal_code,
-    items,
-    total_cents: Math.round((Number(total) || 0) * 100),
-    created_at: new Date().toISOString(),
-  });
-  saveDB(db);
-  res.status(201).end();
+  Counter.findByIdAndUpdate('orders', { $inc: { value: 1 } }, { new: true, upsert: true })
+    .then((counter) => {
+      const id = counter.value;
+      return Order.create({
+        id,
+        customer_name,
+        email: email || '',
+        address_line,
+        city,
+        region: region || '',
+        postal_code,
+        items,
+        total_cents: Math.round((Number(total) || 0) * 100),
+        created_at: new Date().toISOString(),
+      });
+    })
+    .then(() => res.status(201).end())
+    .catch((err) => {
+      console.error('Create order failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 app.get('/api/orders', sessionMiddleware({ owner: true }), (req, res) => {
-  res.json(db.orders || []);
+  Order.find()
+    .sort({ created_at: -1 })
+    .lean()
+    .then((orders) => res.json(orders))
+    .catch((err) => {
+      console.error('Orders fetch failed:', err);
+      res.status(500).json({ error: 'Server error' });
+    });
 });
 
 // Cleanup expired sessions periodically
 setInterval(() => {
   const now = Date.now();
-  const before = db.sessions.length;
-  db.sessions = db.sessions.filter((s) => s.expires_at > now);
-  if (db.sessions.length !== before) saveDB(db);
+  Session.deleteMany({ expires_at: { $lte: now } }).catch((err) => {
+    console.error('Session cleanup failed:', err);
+  });
 }, 5 * 60 * 1000);
 setInterval(() => {
   const now = Date.now();
-  const before = db.user_sessions.length;
-  db.user_sessions = db.user_sessions.filter((s) => s.expires_at > now);
-  if (db.user_sessions.length !== before) saveDB(db);
+  UserSession.deleteMany({ expires_at: { $lte: now } }).catch((err) => {
+    console.error('User session cleanup failed:', err);
+  });
 }, 5 * 60 * 1000);
 
 // Start server
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+async function startServer() {
+  await mongoose.connect(MONGODB_URI);
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
