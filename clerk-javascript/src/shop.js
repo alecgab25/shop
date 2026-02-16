@@ -11,8 +11,14 @@ let backgrounds = {
     shop: { color: '', image: '' },
 };
 let currentUser = null; // { email }
-const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
+const CLERK_PUBLISHABLE_KEY = (
+    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
+    window.__CLERK_PUBLISHABLE_KEY__ ||
+    'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA'
+).trim();
 const CLERK_SCRIPT_URLS = [
+    'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
+    'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
     'https://js.clerk.com/npm/clerk.browser.js',
     'https://js.clerk.dev/npm/clerk.browser.js'
 ];
@@ -116,6 +122,9 @@ function loadClerkScript() {
 async function initClerk() {
     if (clerkReady) return;
     try {
+        if (!CLERK_PUBLISHABLE_KEY) {
+            throw new Error('Missing Clerk publishable key.');
+        }
         await loadClerkScript();
         if (!window.Clerk) {
             throw new Error('Clerk script not loaded.');
@@ -146,16 +155,38 @@ async function showUserAuth(mode) {
         alert('Sign in is still loading. Please try again.');
         return;
     }
+    const afterAuthUrl = window.location.href;
+    const openOptions = { afterSignInUrl: afterAuthUrl, afterSignUpUrl: afterAuthUrl };
     if (mode === 'signin') {
-        window.Clerk.openSignIn();
+        if (typeof window.Clerk.openSignIn === 'function') {
+            window.Clerk.openSignIn(openOptions);
+            return;
+        }
+        if (typeof window.Clerk.redirectToSignIn === 'function') {
+            window.Clerk.redirectToSignIn(openOptions);
+            return;
+        }
     } else {
-        window.Clerk.openSignUp();
+        if (typeof window.Clerk.openSignUp === 'function') {
+            window.Clerk.openSignUp(openOptions);
+            return;
+        }
+        if (typeof window.Clerk.redirectToSignUp === 'function') {
+            window.Clerk.redirectToSignUp(openOptions);
+            return;
+        }
     }
+    alert('Clerk auth UI is not available. Check your Clerk application settings.');
 }
 
 async function userLogout() {
-    if (window.Clerk) {
+    if (window.Clerk && typeof window.Clerk.signOut === 'function') {
         await window.Clerk.signOut();
+    }
+    try {
+        await apiFetch('/api/user-session', { method: 'DELETE' });
+    } catch (_err) {
+        // ignore if no backend user session exists
     }
     currentUser = null;
     currentAdmin = null;
