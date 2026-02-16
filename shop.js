@@ -301,6 +301,65 @@ function syncClerkUser() {
     showUserUI();
 }
 
+function applyRoleSession(session, fallbackEmail = '') {
+    const email = (session && session.email) || fallbackEmail || '';
+    const isAdmin = !!(session && session.is_admin);
+    const isOwnerUser = !!(session && session.is_owner);
+    currentUser = email ? { email, is_admin: isAdmin, is_owner: isOwnerUser } : null;
+    currentAdmin = isAdmin ? { email, is_owner: isOwnerUser } : null;
+    showUserUI();
+    showAdminUI();
+    renderProducts();
+    populateBankForm();
+    if (isOwner()) {
+        loadOrders();
+    } else {
+        orders = [];
+        renderOrders();
+    }
+}
+
+async function syncClerkSessionToBackend() {
+    if (!window.Clerk) return;
+    const user = window.Clerk.user || null;
+    if (!user) {
+        if (currentUser) {
+            try {
+                await apiFetch('/api/user-session', { method: 'DELETE' });
+            } catch (err) {
+                // ignore logout errors
+            }
+            if (currentAdmin && currentUser.email === currentAdmin.email) {
+                currentAdmin = null;
+                showAdminUI();
+                renderProducts();
+                populateBankForm();
+                orders = [];
+                renderOrders();
+            }
+            currentUser = null;
+            showUserUI();
+        }
+        return;
+    }
+    const email = (getClerkUserEmail(user) || '').trim().toLowerCase();
+    if (!email) {
+        currentUser = { email: user.id };
+        showUserUI();
+        return;
+    }
+    try {
+        const session = await apiFetch('/api/clerk/sync-session', {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
+        applyRoleSession(session, email);
+    } catch (err) {
+        currentUser = { email };
+        showUserUI();
+    }
+}
+
 async function initClerk() {
     if (!window.Clerk) {
         console.error('Clerk script not loaded.');
@@ -308,8 +367,12 @@ async function initClerk() {
     }
     await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
     syncClerkUser();
+    await syncClerkSessionToBackend();
     if (typeof window.Clerk.addListener === 'function') {
-        window.Clerk.addListener(syncClerkUser);
+        window.Clerk.addListener(async () => {
+            syncClerkUser();
+            await syncClerkSessionToBackend();
+        });
     }
 }
 
@@ -329,13 +392,21 @@ async function userLogout() {
     if (window.Clerk) {
         await window.Clerk.signOut();
     }
-    currentUser = null;
-    showUserUI();
+    try {
+        await apiFetch('/api/user-session', { method: 'DELETE' });
+    } catch (err) {
+        // ignore logout errors
+    }
+    applyRoleSession(null);
 }
 
 async function hydrateUserSession() {
-    if (!window.Clerk) return;
-    syncClerkUser();
+    try {
+        const session = await apiFetch('/api/user-session');
+        applyRoleSession(session, session.email || '');
+    } catch (err) {
+        if (window.Clerk) syncClerkUser();
+    }
 }
 // --- END USER AUTH ---
 

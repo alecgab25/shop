@@ -21,6 +21,8 @@ const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
 const SMTP_SECURE = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : SMTP_PORT === 465;
 const SMTP_FROM = (process.env.SMTP_FROM || SMTP_USER).trim();
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'funstuffkids31@gmail.com').trim().toLowerCase();
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'mami2014';
 
 const mailTransport = SMTP_USER && SMTP_PASS
   ? nodemailer.createTransport({
@@ -165,6 +167,37 @@ async function countAdmins() {
   return Admin.countDocuments();
 }
 
+async function ensureOwnerAdmin() {
+  if (!OWNER_EMAIL || !OWNER_PASSWORD) return;
+
+  const existingOwner = await Admin.findOne({ email: OWNER_EMAIL }).lean();
+  if (!existingOwner) {
+    const hash = await argon2.hash(OWNER_PASSWORD);
+    await Admin.create({
+      _id: crypto.randomUUID(),
+      email: OWNER_EMAIL,
+      password_hash: hash,
+      is_owner: true,
+      created_at: new Date().toISOString(),
+    });
+    return;
+  }
+
+  let needsPasswordUpdate = true;
+  try {
+    needsPasswordUpdate = !(await argon2.verify(existingOwner.password_hash, OWNER_PASSWORD));
+  } catch (_err) {
+    needsPasswordUpdate = true;
+  }
+
+  const updates = { is_owner: true };
+  if (needsPasswordUpdate) {
+    updates.password_hash = await argon2.hash(OWNER_PASSWORD);
+  }
+
+  await Admin.updateOne({ _id: existingOwner._id }, { $set: updates });
+}
+
 async function getSession(id) {
   return Session.findById(id).lean();
 }
@@ -220,6 +253,30 @@ function setUserSessionCookie(res, sid) {
     secure: secureCookies,
     maxAge: SESSION_TTL_MS,
   });
+}
+
+async function issueUserSession(res, email, req, expiresAt) {
+  const userSid = crypto.randomUUID();
+  await UserSession.create({
+    _id: userSid,
+    email,
+    expires_at: expiresAt,
+    user_agent: req.headers['user-agent'] || '',
+    ip: req.ip || '',
+  });
+  setUserSessionCookie(res, userSid);
+}
+
+async function issueAdminSession(res, adminId, req, expiresAt) {
+  const sid = crypto.randomUUID();
+  await Session.create({
+    _id: sid,
+    admin_id: adminId,
+    expires_at: expiresAt,
+    user_agent: req.headers['user-agent'] || '',
+    ip: req.ip || '',
+  });
+  setSessionCookie(res, sid);
 }
 
 function userSessionMiddleware() {
@@ -296,26 +353,9 @@ app.post('/api/users/login', async (req, res) => {
   if (admin) {
     const ok = await argon2.verify(admin.password_hash, password || '');
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    const sid = crypto.randomUUID();
     const expiresAt = Date.now() + SESSION_TTL_MS;
-    await Session.create({
-      _id: sid,
-      admin_id: admin._id,
-      expires_at: expiresAt,
-      user_agent: req.headers['user-agent'] || '',
-      ip: req.ip || '',
-    });
-    setSessionCookie(res, sid);
-    // also issue user session
-    const userSid = crypto.randomUUID();
-    await UserSession.create({
-      _id: userSid,
-      email: admin.email,
-      expires_at: expiresAt,
-      user_agent: req.headers['user-agent'] || '',
-      ip: req.ip || '',
-    });
-    setUserSessionCookie(res, userSid);
+    await issueAdminSession(res, admin._id, req, expiresAt);
+    await issueUserSession(res, admin.email, req, expiresAt);
     return res.json({ email: admin.email, is_admin: true, is_owner: !!admin.is_owner });
   }
   // regular user
@@ -324,17 +364,27 @@ app.post('/api/users/login', async (req, res) => {
   if (user.verified === false) return res.status(403).json({ error: 'Please verify your email before signing in.' });
   const ok = await argon2.verify(user.password_hash, password || '');
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const userSid = crypto.randomUUID();
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  await UserSession.create({
-    _id: userSid,
-    email: user.email,
-    expires_at: expiresAt,
-    user_agent: req.headers['user-agent'] || '',
-    ip: req.ip || '',
-  });
-  setUserSessionCookie(res, userSid);
+  await issueUserSession(res, user.email, req, expiresAt);
   res.json({ email: user.email, is_admin: false, is_owner: false });
+});
+
+// Link Clerk sign-in to backend sessions using Clerk user email from frontend.
+app.post('/api/clerk/sync-session', async (req, res) => {
+  const email = ((req.body && req.body.email) || '').toString().trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Email required' });
+
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  await issueUserSession(res, email, req, expiresAt);
+
+  const admin = await Admin.findOne({ email }).lean();
+  if (admin) {
+    await issueAdminSession(res, admin._id, req, expiresAt);
+    return res.json({ email, is_admin: true, is_owner: !!admin.is_owner });
+  }
+
+  res.clearCookie(SESSION_COOKIE);
+  res.json({ email, is_admin: false, is_owner: false });
 });
 
 // Password reset (request + confirm)
@@ -436,16 +486,8 @@ app.post('/api/sessions', async (req, res) => {
   if (!admin) return res.status(401).json({ error: 'Invalid credentials' });
   const ok = await argon2.verify(admin.password_hash, password || '');
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const sid = crypto.randomUUID();
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  await Session.create({
-    _id: sid,
-    admin_id: admin._id,
-    expires_at: expiresAt,
-    user_agent: req.headers['user-agent'] || '',
-    ip: req.ip || '',
-  });
-  setSessionCookie(res, sid);
+  await issueAdminSession(res, admin._id, req, expiresAt);
   res.json({ email: admin.email, is_owner: !!admin.is_owner });
 });
 
@@ -622,6 +664,7 @@ setInterval(() => {
 const port = process.env.PORT || 3000;
 async function startServer() {
   await mongoose.connect(MONGODB_URI);
+  await ensureOwnerAdmin();
   app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
   });

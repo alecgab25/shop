@@ -25,6 +25,7 @@ const CLERK_SCRIPT_URLS = [
 let clerkReady = false;
 let clerkLoader = null;
 let clerkInitError = null;
+let lastSyncedClerkEmail = '';
 
 // --- ADMIN SYSTEM ---
 let currentAdmin = null; // { email, is_owner }
@@ -68,9 +69,41 @@ function updateUserUI() {
 function syncClerkUser() {
     if (!window.Clerk) return;
     const user = window.Clerk.user || null;
-    currentUser = user ? { email: getClerkUserEmail(user) || user.id } : null;
-    if (!currentUser) currentAdmin = null;
+    const email = user ? (getClerkUserEmail(user) || '').trim().toLowerCase() : '';
+    currentUser = email ? { email } : null;
+    if (!currentUser) {
+        currentAdmin = null;
+        lastSyncedClerkEmail = '';
+        showAdminUI();
+        renderProducts();
+        populateBankForm();
+    } else {
+        void syncBackendFromClerk();
+    }
     updateUserUI();
+}
+
+async function syncBackendFromClerk() {
+    if (!currentUser || !currentUser.email) return;
+    if (lastSyncedClerkEmail === currentUser.email) return;
+    try {
+        const linked = await apiFetch('/api/clerk/sync-session', {
+            method: 'POST',
+            body: JSON.stringify({ email: currentUser.email }),
+        });
+        if (linked && linked.is_admin) {
+            currentAdmin = { email: linked.email, is_owner: !!linked.is_owner };
+        } else {
+            currentAdmin = null;
+        }
+        lastSyncedClerkEmail = currentUser.email;
+    } catch (_err) {
+        currentAdmin = null;
+    }
+    showAdminUI();
+    renderProducts();
+    populateBankForm();
+    if (isOwner()) await loadOrders();
 }
 
 function loadClerkScriptFromUrl(url) {
@@ -190,6 +223,7 @@ async function userLogout() {
     }
     currentUser = null;
     currentAdmin = null;
+    lastSyncedClerkEmail = '';
     showAdminUI();
     updateUserUI();
 }
