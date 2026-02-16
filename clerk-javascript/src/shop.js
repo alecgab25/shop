@@ -180,6 +180,10 @@ async function initClerk() {
 
 async function showUserAuth(mode) {
     if (mode === 'signin') {
+        const shopSection = document.getElementById('shop-section');
+        if (shopSection && shopSection.style.display === 'none') {
+            enterShop();
+        }
         showAdminLogin();
         return;
     }
