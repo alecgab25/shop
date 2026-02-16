@@ -104,16 +104,12 @@ async function adminLogin() {
     }
 
     try {
-        const admin = await apiFetch('/api/sessions', {
+        const session = await apiFetch('/api/users/login', {
             method: 'POST',
             body: JSON.stringify({ email, password })
         });
-        currentAdmin = admin;
-        await renderAdminList();
-        showAdminUI();
-        renderProducts(); // refresh product controls visibility
-        populateBankForm();
-        if (isOwner()) await loadOrders();
+        applyRoleSession(session, email);
+        if (isOwner()) await renderAdminList();
         closeAdminLogin();
     } catch (err) {
         errorEl.textContent = (err.data && err.data.error) || 'Login failed.';
@@ -377,13 +373,15 @@ async function initClerk() {
 }
 
 function showUserAuth(mode) {
-    if (!window.Clerk) {
-        alert('Sign in is still loading. Please try again.');
+    if (mode === 'signin') {
+        showAdminLogin();
         return;
     }
-    if (mode === 'signin') {
-        window.Clerk.openSignIn();
-    } else {
+    if (!window.Clerk) {
+        alert('Create Account is still loading. Please try again.');
+        return;
+    }
+    if (mode === 'signup') {
         window.Clerk.openSignUp();
     }
 }
