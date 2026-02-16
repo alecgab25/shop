@@ -373,15 +373,16 @@ async function initClerk() {
 }
 
 function showUserAuth(mode) {
-    if (mode === 'signin') {
-        showAdminLogin();
-        return;
-    }
     if (!window.Clerk) {
-        alert('Create Account is still loading. Please try again.');
+        alert('Sign in is still loading. Please try again.');
         return;
     }
-    if (mode === 'signup') {
+    if (mode === 'signin') {
+        if (typeof window.Clerk.openSignIn === 'function') {
+            window.Clerk.openSignIn();
+            return;
+        }
+    } else if (mode === 'signup') {
         window.Clerk.openSignUp();
     }
 }
