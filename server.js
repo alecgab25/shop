@@ -480,6 +480,23 @@ app.delete('/api/user-session', userSessionMiddleware(), async (req, res) => {
   res.status(204).end();
 });
 
+app.delete('/api/users/me', userSessionMiddleware(), async (req, res) => {
+  const email = (req.userEmail || '').toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Invalid session' });
+
+  const admin = await Admin.findOne({ email }).lean();
+  if (admin) {
+    return res.status(403).json({ error: 'Admin/owner accounts cannot be deleted here.' });
+  }
+
+  await User.deleteOne({ email });
+  await UserSession.deleteMany({ email });
+  await ResetToken.deleteMany({ email });
+  res.clearCookie(USER_SESSION_COOKIE);
+  res.clearCookie(SESSION_COOKIE);
+  res.status(204).end();
+});
+
 app.post('/api/sessions', async (req, res) => {
   const { email, password } = req.body || {};
   const admin = await Admin.findOne({ email: (email || '').toLowerCase() }).lean();

@@ -398,6 +398,28 @@ async function userLogout() {
     applyRoleSession(null);
 }
 
+async function deleteMyAccount() {
+    if (!currentUser || !currentUser.email) {
+        alert('You are not signed in.');
+        return;
+    }
+    if (!confirm('Delete your account permanently? This cannot be undone.')) return;
+    try {
+        await apiFetch('/api/users/me', { method: 'DELETE' });
+        if (window.Clerk) {
+            try {
+                await window.Clerk.signOut();
+            } catch (err) {
+                // ignore Clerk sign-out errors
+            }
+        }
+        applyRoleSession(null);
+        alert('Your account was deleted.');
+    } catch (err) {
+        alert((err.data && err.data.error) || 'Could not delete account.');
+    }
+}
+
 async function hydrateUserSession() {
     try {
         const session = await apiFetch('/api/user-session');
