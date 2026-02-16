@@ -62,6 +62,8 @@ function getClerkUserEmail(user) {
 function updateUserUI() {
     const signoutBtn = document.getElementById('front-signout-btn');
     if (signoutBtn) signoutBtn.style.display = currentUser ? 'inline-block' : 'none';
+    const deleteBtn = document.getElementById('front-delete-btn');
+    if (deleteBtn) deleteBtn.style.display = currentUser ? 'inline-block' : 'none';
     const signinBtn = document.getElementById('front-signin-btn');
     if (signinBtn) signinBtn.style.display = currentUser ? 'none' : 'inline-block';
 }
@@ -177,6 +179,10 @@ async function initClerk() {
 }
 
 async function showUserAuth(mode) {
+    if (mode === 'signin') {
+        showAdminLogin();
+        return;
+    }
     try {
         await initClerk();
     } catch (_err) {
@@ -228,8 +234,45 @@ async function userLogout() {
     updateUserUI();
 }
 
+async function deleteMyAccount() {
+    if (!currentUser || !currentUser.email) {
+        alert('You are not signed in.');
+        return;
+    }
+    if (!confirm('Delete your account permanently? This cannot be undone.')) return;
+    try {
+        await apiFetch('/api/users/me', { method: 'DELETE' });
+        if (window.Clerk && typeof window.Clerk.signOut === 'function') {
+            try {
+                await window.Clerk.signOut();
+            } catch (_err) {
+                // ignore Clerk sign-out errors
+            }
+        }
+        currentUser = null;
+        currentAdmin = null;
+        lastSyncedClerkEmail = '';
+        showAdminUI();
+        updateUserUI();
+        alert('Your account was deleted.');
+    } catch (err) {
+        alert((err.data && err.data.error) || 'Could not delete account.');
+    }
+}
+
 async function hydrateUser() {
-    syncClerkUser();
+    try {
+        const session = await apiFetch('/api/user-session');
+        currentUser = { email: session.email || '' };
+        currentAdmin = session.is_admin ? { email: session.email || '', is_owner: !!session.is_owner } : null;
+        showAdminUI();
+        updateUserUI();
+        renderProducts();
+        populateBankForm();
+        if (isOwner()) await loadOrders();
+    } catch (_err) {
+        syncClerkUser();
+    }
 }
 
 function showAdminUI() {
@@ -285,13 +328,15 @@ async function adminLogin() {
     }
 
     try {
-        const admin = await apiFetch('/api/sessions', {
+        const session = await apiFetch('/api/users/login', {
             method: 'POST',
             body: JSON.stringify({ email, password })
         });
-        currentAdmin = admin;
-        await renderAdminList();
+        currentUser = { email: session.email || email };
+        currentAdmin = session.is_admin ? { email: session.email || email, is_owner: !!session.is_owner } : null;
+        if (isOwner()) await renderAdminList();
         showAdminUI();
+        updateUserUI();
         renderProducts(); // refresh product controls visibility
         populateBankForm();
         if (isOwner()) await loadOrders();
@@ -1253,3 +1298,4 @@ window.openBackgroundPicker = openBackgroundPicker;
 window.saveBackgrounds = saveBackgrounds;
 window.showUserAuth = showUserAuth;
 window.userLogout = userLogout;
+window.deleteMyAccount = deleteMyAccount;
