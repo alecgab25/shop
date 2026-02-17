@@ -14,6 +14,8 @@ const USER_SESSION_COOKIE = 'user_session';
 const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const secureCookies = process.env.NODE_ENV === 'production';
 const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
+const CORS_ORIGIN = (process.env.CORS_ORIGIN || APP_BASE_URL || '').trim();
+const cookieSameSite = (process.env.COOKIE_SAME_SITE || (CORS_ORIGIN && secureCookies ? 'none' : 'lax')).toLowerCase();
 const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
 const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
@@ -35,6 +37,17 @@ const mailTransport = SMTP_USER && SMTP_PASS
 
 app.use(express.json());
 app.use(cookieParser());
+if (CORS_ORIGIN) {
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    if (req.method === 'OPTIONS') return res.status(204).end();
+    next();
+  });
+}
 app.use(express.static(__dirname));
 
 if (!MONGODB_URI) {
@@ -232,7 +245,7 @@ function sessionMiddleware(opts = {}) {
 function setSessionCookie(res, sid) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: cookieSameSite,
     secure: secureCookies,
     maxAge: SESSION_TTL_MS,
   });
@@ -249,7 +262,7 @@ async function deleteUserSession(id) {
 function setUserSessionCookie(res, sid) {
   res.cookie(USER_SESSION_COOKIE, sid, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: cookieSameSite,
     secure: secureCookies,
     maxAge: SESSION_TTL_MS,
   });

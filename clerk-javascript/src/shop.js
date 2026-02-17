@@ -16,6 +16,11 @@ const CLERK_PUBLISHABLE_KEY = (
     window.__CLERK_PUBLISHABLE_KEY__ ||
     'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk'
 ).trim();
+const API_BASE_URL = (
+    import.meta.env.VITE_API_BASE_URL ||
+    window.__API_BASE_URL__ ||
+    ''
+).trim().replace(/\/+$/, '');
 const CLERK_SCRIPT_URLS = [
     'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
     'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
@@ -32,9 +37,12 @@ let currentAdmin = null; // { email, is_owner }
 let bootstrapNeeded = false;
 
 async function apiFetch(path, options = {}) {
+    const url = /^https?:\/\//i.test(path)
+        ? path
+        : (path.startsWith('/api') && API_BASE_URL ? `${API_BASE_URL}${path}` : path);
     const opts = { credentials: 'include', ...options };
     opts.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    const res = await fetch(path, opts);
+    const res = await fetch(url, opts);
     const contentType = res.headers.get('content-type') || '';
     const hasJson = contentType.includes('application/json');
     const data = hasJson ? await res.json().catch(() => null) : null;
