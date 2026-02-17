@@ -14,7 +14,7 @@ let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = (
     import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
     window.__CLERK_PUBLISHABLE_KEY__ ||
-    'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA'
+    'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk'
 ).trim();
 const CLERK_SCRIPT_URLS = [
     'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',

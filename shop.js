@@ -15,7 +15,7 @@ let backgrounds = {
 let currentAdmin = null; // { email, is_owner }
 let bootstrapNeeded = false;
 let currentUser = null; // { email, is_admin, is_owner }
-const CLERK_PUBLISHABLE_KEY = 'pk_test_ZGl2ZXJzZS1pbnNlY3QtOTAuY2xlcmsuYWNjb3VudHMuZGV2JA';
+const CLERK_PUBLISHABLE_KEY = 'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk';
 
 async function apiFetch(path, options = {}) {
     const opts = { credentials: 'include', ...options };
