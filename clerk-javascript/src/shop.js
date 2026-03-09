@@ -16,6 +16,11 @@ const CLERK_PUBLISHABLE_KEY = (
     window.__CLERK_PUBLISHABLE_KEY__ ||
     'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk'
 ).trim();
+const CLERK_FRONTEND_API = (
+    import.meta.env.VITE_CLERK_FRONTEND_API ||
+    window.__CLERK_FRONTEND_API__ ||
+    'https://endless-satyr-51.clerk.accounts.dev'
+).trim().replace(/\/+$/, '');
 const API_BASE_URL = (
     import.meta.env.VITE_API_BASE_URL ||
     window.__API_BASE_URL__ ||
@@ -186,16 +191,21 @@ async function initClerk() {
     }
 }
 
+function redirectToClerkHosted(mode) {
+    const kind = mode === 'signup' ? 'sign-up' : 'sign-in';
+    const redirectUrl = encodeURIComponent(window.location.href);
+    window.location.assign(`${CLERK_FRONTEND_API}/${kind}?redirect_url=${redirectUrl}`);
+}
+
 async function showUserAuth(mode) {
     try {
         await initClerk();
     } catch (_err) {
-        const message = (clerkInitError && clerkInitError.message) ? clerkInitError.message : 'Sign in is still loading.';
-        alert(message + ' If this keeps happening, add your site URL to Clerk Application domains.');
+        redirectToClerkHosted(mode);
         return;
     }
     if (!window.Clerk) {
-        alert('Sign in is still loading. Please try again.');
+        redirectToClerkHosted(mode);
         return;
     }
     const afterAuthUrl = window.location.href;
