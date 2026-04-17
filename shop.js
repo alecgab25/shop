@@ -20,7 +20,20 @@ const CLERK_FRONTEND_API = 'https://endless-satyr-51.clerk.accounts.dev';
 
 async function apiFetch(path, options = {}) {
     const opts = { credentials: 'include', ...options };
-    opts.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const headers = { ...(options.headers || {}) };
+    const method = String(opts.method || 'GET').toUpperCase();
+    const hasBody = options.body !== undefined && options.body !== null;
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+    if (hasBody && !isFormData && !headers['Content-Type'] && !headers['content-type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+    if (method === 'GET' || method === 'HEAD') {
+        delete headers['Content-Type'];
+        delete headers['content-type'];
+    }
+
+    opts.headers = headers;
     const res = await fetch(path, opts);
     const contentType = res.headers.get('content-type') || '';
     const hasJson = contentType.includes('application/json');
@@ -386,14 +399,24 @@ function showUserAuth(mode) {
     }
     if (mode === 'signin') {
         if (typeof window.Clerk.openSignIn === 'function') {
-            window.Clerk.openSignIn();
-            return;
+            try {
+                window.Clerk.openSignIn();
+                return;
+            } catch (err) {
+                redirectToClerkHosted(mode);
+                return;
+            }
         }
         redirectToClerkHosted(mode);
     } else if (mode === 'signup') {
         if (typeof window.Clerk.openSignUp === 'function') {
-            window.Clerk.openSignUp();
-            return;
+            try {
+                window.Clerk.openSignUp();
+                return;
+            } catch (err) {
+                redirectToClerkHosted(mode);
+                return;
+            }
         }
         redirectToClerkHosted(mode);
     }

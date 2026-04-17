@@ -13,9 +13,17 @@ const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const USER_SESSION_COOKIE = 'user_session';
 const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const secureCookies = process.env.NODE_ENV === 'production';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
-const CORS_ORIGIN = (process.env.CORS_ORIGIN || APP_BASE_URL || '').trim();
-const cookieSameSite = (process.env.COOKIE_SAME_SITE || (CORS_ORIGIN && secureCookies ? 'none' : 'lax')).toLowerCase();
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'http://localhost:5173').trim().replace(/\/+$/, '');
+const CORS_ORIGIN = (process.env.CORS_ORIGIN || '').trim();
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || '').trim();
+const allowedOrigins = []
+  .concat(CORS_ORIGINS ? CORS_ORIGINS.split(',') : [])
+  .concat(CORS_ORIGIN ? [CORS_ORIGIN] : [])
+  .concat(APP_BASE_URL ? [APP_BASE_URL] : [])
+  .map((origin) => String(origin || '').trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+const primaryCorsOrigin = CORS_ORIGIN || APP_BASE_URL;
+const cookieSameSite = (process.env.COOKIE_SAME_SITE || (primaryCorsOrigin && secureCookies ? 'none' : 'lax')).toLowerCase();
 const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
 const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
@@ -37,16 +45,28 @@ const mailTransport = SMTP_USER && SMTP_PASS
 
 app.use(express.json());
 app.use(cookieParser());
-if (CORS_ORIGIN) {
+if (allowedOrigins.length > 0) {
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', CORS_ORIGIN);
-    res.header('Vary', 'Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    if (req.method === 'OPTIONS') return res.status(204).end();
+    const origin = (req.headers.origin || '').trim().replace(/\/+$/, '');
+    const originAllowed = origin && allowedOrigins.includes(origin);
+
+    if (originAllowed) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Vary', 'Origin');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.header(
+        'Access-Control-Allow-Headers',
+        req.header('Access-Control-Request-Headers') || 'Content-Type, Authorization'
+      );
+      res.header('Access-Control-Max-Age', '600');
+      if (req.method === 'OPTIONS') return res.status(204).end();
+    }
+
     next();
   });
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('CORS is disabled (no allowed origins configured). Set CORS_ORIGIN/CORS_ORIGINS/APP_BASE_URL.');
 }
 app.use(express.static(__dirname));
 
@@ -416,7 +436,7 @@ app.post('/api/users/reset-request', async (req, res) => {
   const token = crypto.randomUUID();
   const expiresAt = Date.now() + RESET_TTL_MS;
   const target = isAdmin ? 'admin' : 'user';
-  const resetUrl = `${APP_BASE_URL.replace(/\/+$/, '')}/?reset_token=${token}`;
+  const resetUrl = `${APP_BASE_URL}/?reset_token=${token}`;
   try {
     const info = await mailTransport.sendMail({
       from: SMTP_FROM,

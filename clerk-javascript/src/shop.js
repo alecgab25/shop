@@ -12,25 +12,25 @@ let backgrounds = {
 };
 let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = (
-    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
     window.__CLERK_PUBLISHABLE_KEY__ ||
+    import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
     'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk'
 ).trim();
 const CLERK_FRONTEND_API = (
-    import.meta.env.VITE_CLERK_FRONTEND_API ||
     window.__CLERK_FRONTEND_API__ ||
+    import.meta.env.VITE_CLERK_FRONTEND_API ||
     'https://endless-satyr-51.clerk.accounts.dev'
 ).trim().replace(/\/+$/, '');
 const API_BASE_URL = (
-    import.meta.env.VITE_API_BASE_URL ||
     window.__API_BASE_URL__ ||
+    import.meta.env.VITE_API_BASE_URL ||
     ''
 ).trim().replace(/\/+$/, '');
 const CLERK_SCRIPT_URLS = [
-    'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
-    'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
-    'https://js.clerk.com/npm/clerk.browser.js',
-    'https://js.clerk.dev/npm/clerk.browser.js'
+    'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.js',
+    'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.js',
+    'https://js.clerk.com/npm/clerk.js',
+    'https://js.clerk.dev/npm/clerk.js'
 ];
 let clerkReady = false;
 let clerkLoader = null;
@@ -46,7 +46,20 @@ async function apiFetch(path, options = {}) {
         ? path
         : (path.startsWith('/api') && API_BASE_URL ? `${API_BASE_URL}${path}` : path);
     const opts = { credentials: 'include', ...options };
-    opts.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const headers = { ...(options.headers || {}) };
+    const method = String(opts.method || 'GET').toUpperCase();
+    const hasBody = options.body !== undefined && options.body !== null;
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+    if (hasBody && !isFormData && !headers['Content-Type'] && !headers['content-type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+    if (method === 'GET' || method === 'HEAD') {
+        delete headers['Content-Type'];
+        delete headers['content-type'];
+    }
+
+    opts.headers = headers;
     const res = await fetch(url, opts);
     const contentType = res.headers.get('content-type') || '';
     const hasJson = contentType.includes('application/json');
@@ -138,7 +151,7 @@ function loadClerkScript() {
     if (window.Clerk) return Promise.resolve();
     if (clerkLoader) return clerkLoader;
 
-    const existingScript = document.querySelector('script[src*="clerk.browser.js"]');
+    const existingScript = document.querySelector('script[src*="clerk.js"], script[src*="clerk.browser.js"]');
     if (existingScript) {
         clerkLoader = new Promise((resolve, reject) => {
             if (window.Clerk) {
@@ -212,8 +225,13 @@ async function showUserAuth(mode) {
     const openOptions = { afterSignInUrl: afterAuthUrl, afterSignUpUrl: afterAuthUrl };
     if (mode === 'signin') {
         if (typeof window.Clerk.openSignIn === 'function') {
-            window.Clerk.openSignIn(openOptions);
-            return;
+            try {
+                window.Clerk.openSignIn(openOptions);
+                return;
+            } catch (_err) {
+                redirectToClerkHosted(mode);
+                return;
+            }
         }
         if (typeof window.Clerk.redirectToSignIn === 'function') {
             window.Clerk.redirectToSignIn(openOptions);
@@ -221,8 +239,13 @@ async function showUserAuth(mode) {
         }
     } else {
         if (typeof window.Clerk.openSignUp === 'function') {
-            window.Clerk.openSignUp(openOptions);
-            return;
+            try {
+                window.Clerk.openSignUp(openOptions);
+                return;
+            } catch (_err) {
+                redirectToClerkHosted(mode);
+                return;
+            }
         }
         if (typeof window.Clerk.redirectToSignUp === 'function') {
             window.Clerk.redirectToSignUp(openOptions);
