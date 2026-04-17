@@ -19,7 +19,7 @@ const CLERK_PUBLISHABLE_KEY = (
 const CLERK_FRONTEND_API = (
     window.__CLERK_FRONTEND_API__ ||
     import.meta.env.VITE_CLERK_FRONTEND_API ||
-    'https://endless-satyr-51.clerk.accounts.dev'
+    ''
 ).trim().replace(/\/+$/, '');
 const API_BASE_URL = (
     window.__API_BASE_URL__ ||
@@ -27,10 +27,10 @@ const API_BASE_URL = (
     ''
 ).trim().replace(/\/+$/, '');
 const CLERK_SCRIPT_URLS = [
-    'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.js',
-    'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.js',
-    'https://js.clerk.com/npm/clerk.js',
-    'https://js.clerk.dev/npm/clerk.js'
+    'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
+    'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
+    'https://js.clerk.com/npm/clerk.browser.js',
+    'https://js.clerk.dev/npm/clerk.browser.js'
 ];
 let clerkReady = false;
 let clerkLoader = null;
@@ -205,6 +205,10 @@ async function initClerk() {
 }
 
 function redirectToClerkHosted(mode) {
+    if (!CLERK_FRONTEND_API) {
+        alert('Sign in is unavailable right now. Missing Clerk frontend domain configuration.');
+        return;
+    }
     const kind = mode === 'signup' ? 'sign-up' : 'sign-in';
     const redirectUrl = encodeURIComponent(window.location.href);
     window.location.assign(`${CLERK_FRONTEND_API}/${kind}?redirect_url=${redirectUrl}`);
@@ -224,6 +228,10 @@ async function showUserAuth(mode) {
     const afterAuthUrl = window.location.href;
     const openOptions = { afterSignInUrl: afterAuthUrl, afterSignUpUrl: afterAuthUrl };
     if (mode === 'signin') {
+        if (typeof window.Clerk.redirectToSignIn === 'function') {
+            window.Clerk.redirectToSignIn(openOptions);
+            return;
+        }
         if (typeof window.Clerk.openSignIn === 'function') {
             try {
                 window.Clerk.openSignIn(openOptions);
@@ -233,11 +241,11 @@ async function showUserAuth(mode) {
                 return;
             }
         }
-        if (typeof window.Clerk.redirectToSignIn === 'function') {
-            window.Clerk.redirectToSignIn(openOptions);
+    } else {
+        if (typeof window.Clerk.redirectToSignUp === 'function') {
+            window.Clerk.redirectToSignUp(openOptions);
             return;
         }
-    } else {
         if (typeof window.Clerk.openSignUp === 'function') {
             try {
                 window.Clerk.openSignUp(openOptions);
@@ -246,10 +254,6 @@ async function showUserAuth(mode) {
                 redirectToClerkHosted(mode);
                 return;
             }
-        }
-        if (typeof window.Clerk.redirectToSignUp === 'function') {
-            window.Clerk.redirectToSignUp(openOptions);
-            return;
         }
     }
     alert('Clerk auth UI is not available. Check your Clerk application settings.');

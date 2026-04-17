@@ -16,7 +16,7 @@ let currentAdmin = null; // { email, is_owner }
 let bootstrapNeeded = false;
 let currentUser = null; // { email, is_admin, is_owner }
 const CLERK_PUBLISHABLE_KEY = 'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk';
-const CLERK_FRONTEND_API = 'https://endless-satyr-51.clerk.accounts.dev';
+const CLERK_FRONTEND_API = (window.__CLERK_FRONTEND_API__ || '').trim().replace(/\/+$/, '');
 
 async function apiFetch(path, options = {}) {
     const opts = { credentials: 'include', ...options };
@@ -387,6 +387,10 @@ async function initClerk() {
 }
 
 function redirectToClerkHosted(mode) {
+    if (!CLERK_FRONTEND_API) {
+        alert('Sign in is unavailable right now. Missing Clerk frontend domain configuration.');
+        return;
+    }
     const kind = mode === 'signup' ? 'sign-up' : 'sign-in';
     const redirectUrl = encodeURIComponent(window.location.href);
     window.location.assign(`${CLERK_FRONTEND_API}/${kind}?redirect_url=${redirectUrl}`);
@@ -398,6 +402,10 @@ function showUserAuth(mode) {
         return;
     }
     if (mode === 'signin') {
+        if (typeof window.Clerk.redirectToSignIn === 'function') {
+            window.Clerk.redirectToSignIn();
+            return;
+        }
         if (typeof window.Clerk.openSignIn === 'function') {
             try {
                 window.Clerk.openSignIn();
@@ -409,6 +417,10 @@ function showUserAuth(mode) {
         }
         redirectToClerkHosted(mode);
     } else if (mode === 'signup') {
+        if (typeof window.Clerk.redirectToSignUp === 'function') {
+            window.Clerk.redirectToSignUp();
+            return;
+        }
         if (typeof window.Clerk.openSignUp === 'function') {
             try {
                 window.Clerk.openSignUp();
