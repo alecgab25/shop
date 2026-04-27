@@ -14,7 +14,7 @@ let currentUser = null; // { email }
 const CLERK_PUBLISHABLE_KEY = (
     window.__CLERK_PUBLISHABLE_KEY__ ||
     import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
-    'pk_test_ZW5kbGVzcy1zYXR5ci01MS5jbGVyay5hY2NvdW50cy5kZXYk'
+    ''
 ).trim();
 const CLERK_FRONTEND_API = (
     window.__CLERK_FRONTEND_API__ ||
@@ -26,6 +26,11 @@ const API_BASE_URL = (
     import.meta.env.VITE_API_BASE_URL ||
     ''
 ).trim().replace(/\/+$/, '');
+const GAMING_SHOP_URL = (
+    window.__GAMING_SHOP_URL__ ||
+    import.meta.env.VITE_GAMING_SHOP_URL ||
+    '/gaming'
+).trim();
 const CLERK_SCRIPT_URLS = [
     'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
     'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
@@ -36,6 +41,14 @@ let clerkReady = false;
 let clerkLoader = null;
 let clerkInitError = null;
 let lastSyncedClerkEmail = '';
+const IS_PRODUCTION_HOST = (() => {
+    const host = (window.location.hostname || '').toLowerCase();
+    return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local');
+})();
+
+function isTestClerkPublishableKey(value) {
+    return /^pk_test_/i.test(String(value || '').trim());
+}
 
 // --- ADMIN SYSTEM ---
 let currentAdmin = null; // { email, is_owner }
@@ -186,6 +199,9 @@ async function initClerk() {
         if (!CLERK_PUBLISHABLE_KEY) {
             throw new Error('Missing Clerk publishable key.');
         }
+        if (IS_PRODUCTION_HOST && isTestClerkPublishableKey(CLERK_PUBLISHABLE_KEY)) {
+            throw new Error('Refusing to initialize Clerk with a test publishable key on a production host.');
+        }
         await loadClerkScript();
         if (!window.Clerk) {
             throw new Error('Clerk script not loaded.');
@@ -217,7 +233,12 @@ function redirectToClerkHosted(mode) {
 async function showUserAuth(mode) {
     try {
         await initClerk();
-    } catch (_err) {
+    } catch (err) {
+        const message = String((err && err.message) || '');
+        if (message.includes('Missing Clerk publishable key') || message.includes('test publishable key')) {
+            alert('Sign in is unavailable because Clerk is not configured with a live publishable key for this deployment.');
+            return;
+        }
         redirectToClerkHosted(mode);
         return;
     }
@@ -228,10 +249,6 @@ async function showUserAuth(mode) {
     const afterAuthUrl = window.location.href;
     const openOptions = { afterSignInUrl: afterAuthUrl, afterSignUpUrl: afterAuthUrl };
     if (mode === 'signin') {
-        if (typeof window.Clerk.redirectToSignIn === 'function') {
-            window.Clerk.redirectToSignIn(openOptions);
-            return;
-        }
         if (typeof window.Clerk.openSignIn === 'function') {
             try {
                 window.Clerk.openSignIn(openOptions);
@@ -241,11 +258,11 @@ async function showUserAuth(mode) {
                 return;
             }
         }
-    } else {
-        if (typeof window.Clerk.redirectToSignUp === 'function') {
-            window.Clerk.redirectToSignUp(openOptions);
+        if (typeof window.Clerk.redirectToSignIn === 'function') {
+            window.Clerk.redirectToSignIn(openOptions);
             return;
         }
+    } else {
         if (typeof window.Clerk.openSignUp === 'function') {
             try {
                 window.Clerk.openSignUp(openOptions);
@@ -254,6 +271,10 @@ async function showUserAuth(mode) {
                 redirectToClerkHosted(mode);
                 return;
             }
+        }
+        if (typeof window.Clerk.redirectToSignUp === 'function') {
+            window.Clerk.redirectToSignUp(openOptions);
+            return;
         }
     }
     alert('Clerk auth UI is not available. Check your Clerk application settings.');
@@ -979,6 +1000,10 @@ function returnToFront() {
     closeCartDropdown();
 }
 
+function openGamingShop() {
+    window.location.assign(GAMING_SHOP_URL || '/gaming');
+}
+
 function addProduct() {
     if (!canManageProducts()) {
         alert('Only admins can add products. Please log in as admin.');
@@ -1325,6 +1350,7 @@ window.loadOrders = loadOrders;
 window.startCheckout = startCheckout;
 window.closeCheckout = closeCheckout;
 window.submitOrder = submitOrder;
+window.openGamingShop = openGamingShop;
 window.enterShop = enterShop;
 window.returnToFront = returnToFront;
 window.addProduct = addProduct;

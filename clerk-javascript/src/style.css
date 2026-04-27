@@ -717,6 +717,24 @@ html {
   transform: scale(1.05);
 }
 
+.gaming-btn {
+  padding: 8px 16px;
+  font-size: 0.95em;
+  background: linear-gradient(90deg, #16a34a 0%, #0ea5e9 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s, transform 0.2s;
+  font-family: inherit;
+}
+
+.gaming-btn:hover {
+  background: linear-gradient(90deg, #0ea5e9 0%, #16a34a 100%);
+  transform: scale(1.05);
+}
+
 .modal {
   display: none;
   position: fixed;
