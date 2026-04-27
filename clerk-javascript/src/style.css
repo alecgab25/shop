@@ -735,6 +735,44 @@ html {
   transform: scale(1.05);
 }
 
+body.gaming-mode #shop-section {
+  background:
+    radial-gradient(circle at 10% 20%, rgba(34, 211, 238, 0.18), transparent 35%),
+    radial-gradient(circle at 85% 10%, rgba(163, 230, 53, 0.15), transparent 40%),
+    linear-gradient(140deg, #0f172a 0%, #111827 45%, #020617 100%);
+}
+
+body.gaming-mode .shop-header {
+  background: linear-gradient(90deg, #0b1220 0%, #1d4ed8 45%, #16a34a 100%);
+  box-shadow: 0 8px 28px -10px rgba(8, 145, 178, 0.45);
+}
+
+body.gaming-mode .shop-header-title {
+  color: #e2f5ff;
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+}
+
+body.gaming-mode .products-heading-separator h2 {
+  background: #0b1220;
+  color: #93c5fd;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 8px 22px -12px rgba(34, 211, 238, 0.5);
+}
+
+body.gaming-mode .product-item {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(17, 24, 39, 0.9) 100%);
+  box-shadow: 0 12px 30px -14px rgba(34, 211, 238, 0.5);
+}
+
+body.gaming-mode .product-item span {
+  color: #dbeafe;
+}
+
+body.gaming-mode .search-bar input {
+  background: rgba(15, 23, 42, 0.88);
+  border-color: rgba(59, 130, 246, 0.55);
+  color: #e0f2fe;
+}
+
 .modal {
   display: none;
   position: fixed;

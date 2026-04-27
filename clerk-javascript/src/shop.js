@@ -26,11 +26,6 @@ const API_BASE_URL = (
     import.meta.env.VITE_API_BASE_URL ||
     ''
 ).trim().replace(/\/+$/, '');
-const GAMING_SHOP_URL = (
-    window.__GAMING_SHOP_URL__ ||
-    import.meta.env.VITE_GAMING_SHOP_URL ||
-    '/gaming'
-).trim();
 const CLERK_SCRIPT_URLS = [
     'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js',
     'https://unpkg.com/@clerk/clerk-js@latest/dist/clerk.browser.js',
@@ -41,6 +36,7 @@ let clerkReady = false;
 let clerkLoader = null;
 let clerkInitError = null;
 let lastSyncedClerkEmail = '';
+let isGamingMode = false;
 const IS_PRODUCTION_HOST = (() => {
     const host = (window.location.hostname || '').toLowerCase();
     return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local');
@@ -699,17 +695,38 @@ function applyBackgrounds() {
     }
     const shopEl = document.getElementById('shop-section');
     if (shopEl) {
-        shopEl.style.backgroundColor = shop.color || '';
-        if (shop.image) {
-            shopEl.style.backgroundImage = `url('${shop.image}')`;
-            shopEl.style.backgroundSize = 'cover';
-            shopEl.style.backgroundPosition = 'center';
-        } else {
+        if (isGamingMode) {
             shopEl.style.backgroundImage = '';
             shopEl.style.backgroundSize = '';
             shopEl.style.backgroundPosition = '';
+            shopEl.style.backgroundColor = '';
+        } else {
+            shopEl.style.backgroundColor = shop.color || '';
+            if (shop.image) {
+                shopEl.style.backgroundImage = `url('${shop.image}')`;
+                shopEl.style.backgroundSize = 'cover';
+                shopEl.style.backgroundPosition = 'center';
+            } else {
+                shopEl.style.backgroundImage = '';
+                shopEl.style.backgroundSize = '';
+                shopEl.style.backgroundPosition = '';
+            }
         }
     }
+}
+
+function setGamingMode(enabled) {
+    isGamingMode = !!enabled;
+    document.body.classList.toggle('gaming-mode', isGamingMode);
+    const titleEl = document.querySelector('.shop-header-title');
+    if (titleEl) {
+        titleEl.textContent = isGamingMode ? 'Glow Up Gaming' : 'Glow Up';
+    }
+    const gamingBtn = document.getElementById('gaming-shop-btn');
+    if (gamingBtn) {
+        gamingBtn.textContent = isGamingMode ? 'Main Shop' : 'Gaming';
+    }
+    applyBackgrounds();
 }
 
 function populateBackgroundForm() {
@@ -983,7 +1000,8 @@ async function submitOrder() {
     }
 }
 
-function enterShop() {
+function openShopView(gamingMode = false) {
+    setGamingMode(gamingMode);
     document.getElementById('front-page').style.display = 'none';
     document.getElementById('shop-section').style.display = '';
     // set message in shop page (remains for compatibility if message still in localStorage)
@@ -994,14 +1012,19 @@ function enterShop() {
     hydrateSession();
 }
 
+function enterShop() {
+    openShopView(false);
+}
+
 function returnToFront() {
+    setGamingMode(false);
     document.getElementById('front-page').style.display = '';
     document.getElementById('shop-section').style.display = 'none';
     closeCartDropdown();
 }
 
 function openGamingShop() {
-    window.location.assign(GAMING_SHOP_URL || '/gaming');
+    openShopView(true);
 }
 
 function addProduct() {
@@ -1276,6 +1299,7 @@ function scrollToShop() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    setGamingMode(false);
     document.getElementById('front-page').style.display = '';
     document.getElementById('shop-section').style.display = 'none';
     // set shop message in shop-section if any (compatibility)
