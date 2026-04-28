@@ -1024,7 +1024,7 @@ function returnToFront() {
 }
 
 function openGamingShop() {
-    openShopView(true);
+    openShopView(!isGamingMode);
 }
 
 function addProduct() {
